@@ -14,17 +14,20 @@
 // You should have received a copy of the GNU Lesser General Public License
 // along with the go-ethereum library. If not, see <http://www.gnu.org/licenses/>.
 
-// prestateTracer outputs sufficient information to create a local execution of
+// stateDiffTracer outputs sufficient information to create a local execution of
 // the transaction from a custom assembled genesisT block.
 {
-	// prestate is the genesisT that we're building.
-	prestate: null,
+	// stateDiff is the genesisT that we're building.
+	stateDiff: null,
+
+	lastGasIn: null,
 
 	diffMarkers: {
-		Same: "=",
+		Memory: "_",	// temp state used while running the tracer, will never be returned to the user
 		Born: "+",
 		Died: "-",
 		Changed: "*",
+		Same: "=",
 	},
 
 	isObjectEmpty: function(obj) {
@@ -32,166 +35,210 @@
 		return true;
 	},
 
+	toHexJs: function(val) {
+		return typeof val !== "string" || val.indexOf("0x") !== 0 ? "0x" + val.toString(16) : val;
+	},
 
-	// lookupAccount injects the specified account into the prestate object.
+	// lookupAccount injects the specified account into the stateDiff object.
 	lookupAccount: function(addr, db, type){
 		type = type || this.diffMarkers.Changed;
 
-		var acc = toHex(addr);
-		var balance = "0x" + db.getBalance(addr).toString(16);
-		console.log('add',acc, type, balance)
-		var code = toHex(db.getCode(addr));
+		var memoryMarker = this.diffMarkers.Memory;
 
-		if (this.prestate[acc] === undefined) {
-			var nonce = db.getNonce(addr);
-      console.log('nonce', type, acc, nonce, balance, code)
+		var acc = toHex(addr);
+		// if (acc == '0xd6758d1907ed647605429d40cd19c58a6d05eb8b') {
+		// 	var ba = db.getBalance(toAddress('0x893defcfe8dc3b7fe2b95c2ddd6415ac2f1eb582'));
+		// 	console.log('miner', ba, "0x" + ba.toString(16))
+		// }
+		var balance = "0x" + db.getBalance(addr).toString(16);
+    console.log('acc', acc, balance)
+		var code = toHex(db.getCode(addr));
+		var nonce = db.getNonce(addr);
+
+		if (this.stateDiff[acc] === undefined) {
 			// if (nonce == 1 && code != "0x") {
 			// 	type = this.diffMarkers.Born;
 			// }
 
 
-			if (type === this.diffMarkers.Born) {
-				this.prestate[acc] = {
-					type: type,
-					balance: {
-						[type]: balance,
-					},
-					nonce: {
-						[type]: nonce,
-					},
-					code: {
-						[type]: code,
-					},
-					storage: {}
-				};
-			} else {
-				this.prestate[acc] = {
-					type: type,
-					balance: {
-						[type]: {
-							"from": balance,
-						}
-					},
-					nonce: {
-						[type]: {
-							"from": nonce,
-						}
-					},
-					code: {
-						[type]: {
-							"from": code,
-						}
-					},
-					storage: {}
-				};
-			}
+			this.stateDiff[acc] = {
+				type: type,
+				balance: {
+					[memoryMarker]: {
+						"from": balance,
+					}
+				},
+				nonce: {
+					[memoryMarker]: {
+						"from": nonce,
+					}
+				},
+				code: {
+					[memoryMarker]: {
+						"from": code,
+					}
+				},
+				storage: {}
+			};
 		}
 
-		// re-read type from prestate
-		// type = this.prestate[acc].type;
-		this.prestate[acc].type = type;
-		if (type == this.diffMarkers.Changed) {
-			console.log('🚀 ~ file: state_diff_tracer.js ~ line 89 ~ balance', balance)
-			if (balance && balance != this.prestate[acc].balance[type].from) {
-				this.prestate[acc].balance[type].to = balance;
-			}
+		var accountData = this.stateDiff[acc];
 
-			// if (nonce && nonce != this.prestate[acc].nonce[type].from) {
-			// 	this.prestate[acc].nonce[type].to = nonce;
-			// }
+		// console.log('nonce', type, acc, accountData.nonce, '=>',nonce)
 
-			if (code && code != this.prestate[acc].code[type].from) {
-				this.prestate[acc].code[type].to = code;
-			}
+
+		// re-read type from stateDiff
+		// accountData.type = type;
+		if (balance) {
+			accountData.balance[memoryMarker].to = balance;
+		}
+
+		// var latestKnownNonce = accountData.nonce[memoryMarker].to || accountData.nonce[memoryMarker].from
+		// if (nonce && type === this.diffMarkers.Born) {
+		// 	accountData.nonce[memoryMarker].to = latestKnownNonce + 1;
+		if (nonce) {
+			accountData.nonce[memoryMarker].to = nonce;
+		}
+
+		if (code) {
+			accountData.code[memoryMarker].to = code;
 		}
 	},
 
 	// lookupStorage injects the specified storage entry of the given account into
-	// the prestate object.
+	// the stateDiff object.
 	lookupStorage: function(addr, key, val, db){
 		var acc = toHex(addr);
 		var idx = toHex(key);
 
-		// if (this.prestate[acc] !== undefined) {
+		var memoryMarker = this.diffMarkers.Memory;
+
+		// if (this.stateDiff[acc] !== undefined) {
 		// 	return;
 		// }
 
-		var type = this.prestate[acc].type;
+		var accountData = this.stateDiff[acc];
 
-		if (this.prestate[acc].storage[idx] === undefined) {
-			if (type === this.diffMarkers.Changed) {
-				this.prestate[acc].storage[idx] = {
-					[type]: {
-						"from": toHex(db.getState(addr, key))
-					}
-				};
-			// } else if (type === this.diffMarkers.Same) {
-			// 	this.prestate[acc].storage[idx] = this.diffMarkers.Same;
-			} else {
-				this.prestate[acc].storage[idx] = {
-					[type]: toHex(db.getState(addr, key))
+		if (accountData.storage[idx] === undefined) {
+			accountData.storage[idx] = {
+				[memoryMarker]: {
+					"from": toHex(db.getState(addr, key))
 				}
-			}
+			};
 		}
 
 		if (val) {
-			if (type === this.diffMarkers.Changed) {
-				this.prestate[acc].storage[idx][this.diffMarkers.Changed].to = toHex(val);
-			} else {
-				this.prestate[acc].storage[idx][type] = toHex(val);
+			accountData.storage[idx][memoryMarker].to = toHex(val);
+		}
+	},
+
+	formatSingle: function(data, type) {
+		type = type || this.diffMarkers.Changed;
+
+		var memoryMarker = this.diffMarkers.Memory;
+		var val = data[memoryMarker].to || data[memoryMarker].from;
+
+		return {
+			[type]: this.toHexJs(val),
+		}
+	},
+
+	formatChanged: function(data, type) {
+		type = type || this.diffMarkers.Changed;
+
+		var memoryMarker = this.diffMarkers.Memory;
+		var changedMarker = this.diffMarkers.Changed;
+		var sameMarker = this.diffMarkers.Same;
+
+		var from = data[memoryMarker].from;
+		var to = data[memoryMarker].to;
+
+		if (to === undefined ||
+			from === to) {
+			return sameMarker;
+		}
+
+		return {
+			[changedMarker]: {
+				from: this.toHexJs(from),
+				to: this.toHexJs(to),
 			}
 		}
 	},
 
+	hasAccountChanges: function(data) {
+		var sameMarker = this.diffMarkers.Same;
+
+		if (data.balance === sameMarker &&
+				data.nonce === sameMarker &&
+				data.code === sameMarker &&
+				this.isObjectEmpty(data.storage)
+			) {
+				return false;
+			}
+			return true;
+	},
+
 	format: function(db) {
-		for (var acc in this.prestate) {
+		for (var acc in this.stateDiff) {
 			// Fetch latest balance
 			// TODO: optimise
 			this.lookupAccount(toAddress(acc), db);
 
-			var accountData = this.prestate[acc];
+			var accountData = this.stateDiff[acc];
 			var type = accountData.type;
+      console.log('149 \t type', type)
+			delete accountData.type;
 
-			var changedType = this.diffMarkers.Changed;
-			var sameType = this.diffMarkers.Same;
+			var memoryMarker = this.diffMarkers.Memory;
 
-			console.log('🚀 ~ file: state_diff_tracer.js ~ line 147 ~ accountData.balance', type, acc, accountData.balance)
-			if (type === changedType) {
-				if (accountData.balance[changedType].to === undefined ||
-					accountData.balance[changedType].from === accountData.balance[changedType].to) {
-					accountData.balance = sameType;
-				}
+			var changedMarker = this.diffMarkers.Changed;
+			var sameMarker = this.diffMarkers.Same;
 
-				if (accountData.nonce[changedType].to === undefined ||
-					accountData.nonce[changedType].from === accountData.nonce[changedType].to) {
-					accountData.nonce = sameType;
-				}
-
-				if (accountData.code[changedType].to === undefined ||
-					accountData.code[changedType].from === accountData.code[changedType].to) {
-					accountData.code = sameType;
-				}
+			if (type === changedMarker) {
+				accountData.balance = this.formatChanged(accountData.balance, type);
+				accountData.nonce = this.formatChanged(accountData.nonce, type);
+				accountData.code = this.formatChanged(accountData.code, type);
+			} else {
+				accountData.balance = this.formatSingle(accountData.balance, type);
+				accountData.nonce = this.formatSingle(accountData.nonce, type);
+				accountData.code = this.formatSingle(accountData.code, type);
 			}
 
-			delete this.prestate[acc].type;
-
-			if (accountData.balance === sameType &&
-				accountData.nonce === sameType &&
-				accountData.code === sameType &&
-				this.isObjectEmpty(accountData.storage)
-			) {
-				delete this.prestate[acc];
+			// optimisation: pre-check if we have changes before parsing storage state
+			if (!this.hasAccountChanges(accountData)) {
+				delete this.stateDiff[acc];
 				continue;
 			}
 
 			for (var idx in accountData.storage) {
-				console.log('🚀 ~ file: state_diff_tracer.js ~ line 186 ~ accountData.storage[idx][type]', accountData.storage[idx][type])
-				if (type === changedType && accountData.storage[idx][changedType].to === undefined) {
-					delete this.prestate[acc].storage[idx];
-				} else if (accountData.storage[idx][type] === undefined ||
-						/^(0x)?0*$/.test(accountData.storage[idx][type])) {
-					delete this.prestate[acc].storage[idx];
+				var sti = accountData.storage[idx];
+				if (sti[memoryMarker] === undefined ||
+						sti[memoryMarker].to === undefined ||
+						/^(0x)?0*$/.test(sti[memoryMarker].to)) {
+					delete this.stateDiff[acc].storage[idx];
+				// } else if (accountData.storage[idx][type] === undefined ||
+				// 		/^(0x)?0*$/.test(accountData.storage[idx][type])) {
+				// 	delete this.stateDiff[acc].storage[idx];
+					continue;
 				}
+
+				if (type === changedMarker) {
+					var res = this.formatChanged(sti, type);
+					if (res === sameMarker) {
+						delete this.stateDiff[acc].storage[idx];
+					} else {
+						accountData.storage[idx] = res;
+					}
+				} else {
+					accountData.storage[idx] = this.formatSingle(sti, type);
+				}
+			}
+
+			// remove unchanged accounts
+			if (!this.hasAccountChanges(accountData)) {
+				delete this.stateDiff[acc];
+				continue;
 			}
 		}
 	},
@@ -200,6 +247,24 @@
 	// the final result of the tracing.
 	result: function(ctx, db) {
 
+		console.log('----- RESULT -------');
+		// 0x893defcfe8dc3b7fe2b95c2ddd6415ac2f1eb582
+
+		var memoryMarker = this.diffMarkers.Memory;
+
+
+		this.lookupAccount(toAddress(ctx.coinbase), db);
+
+		var gasCost = (ctx.gasLimit - this.lastGasIn) * ctx.gasPrice;
+    console.log('255 \t gasCost', gasCost)
+
+
+		var coinbaseHex = toHex(ctx.coinbase);
+		var coinbaseFromBal = bigInt(this.stateDiff[coinbaseHex].balance[memoryMarker].from.slice(2), 16);
+		this.stateDiff[coinbaseHex].balance[memoryMarker].from = "0x" + coinbaseFromBal.subtract(gasCost).toString(16);
+
+
+
 		// At this point, we need to deduct the "value" from the
 		// outer transaction, and move it back to the origin
 		this.lookupAccount(toAddress(ctx.from), db);
@@ -207,48 +272,65 @@
 		var fromAccountHex = toHex(ctx.from);
 		var toAccountHex = toHex(ctx.to);
 
-		var fromAccountData = this.prestate[fromAccountHex] || {};
-		var toAccountData = this.prestate[toAccountHex] || {};
+		// var fromAccountData = this.stateDiff[fromAccountHex] || {};
+		// var toAccountData = this.stateDiff[toAccountHex] || {};
 
-		var fromType = fromAccountData.type;
-		var toType = toAccountData.type;
 
-		var changedType = this.diffMarkers.Changed;
+		// var gas = ctx.gas;
+    // console.log('262 \t gas', gas)
+		// var gasUsed = ctx.gasUsed;
+    // console.log('264 \t gasUsed', gasUsed)
 
-		if (fromType === changedType) {
-			var fromBal = bigInt(this.prestate[fromAccountHex].balance[changedType].from.slice(2), 16);
-			this.prestate[fromAccountHex].balance[changedType].from = "0x" + fromBal.add(ctx.value).toString(16);
+		// var gasSet = 250000;
+		// var gasPrice = 20;
+
+		console.log('ctx', ctx);
+
+		console.log('0xb62da4cfbd8a3206e, 0xb62d82756f99d186e', bigInt(0xb62da4cfbd8a3206e).subtract(bigInt(0xb62d82756f99d186e)))
+
+		// console.log('cost', gas * gasUsed)
+		// console.log('cost g', gas * gasPrice)
+		// console.log('cost gu', gasUsed * gasPrice)
+		// console.log('cost gs', gasSet * gasPrice)
+		// console.log('cost gs 137,785', 137785 * gasPrice)
+		// console.log('cost tgu', (gas * gasPrice) + (gasUsed * gasPrice))
+
+		// console.log('refund', this.logger.refund);
+
+		// console.log('this.logger', JSON.stringify(this.logger))
+
+
+		var fromBal = bigInt(this.stateDiff[fromAccountHex].balance[memoryMarker].from.slice(2), 16);
+		this.stateDiff[fromAccountHex].balance[memoryMarker].from = "0x" + fromBal.add(ctx.value).add(gasCost).toString(16);
+    console.log('305 \t fromBal', fromBal, ctx.value, gasCost, fromBal.add(ctx.value), fromBal.add(ctx.value).add(gasCost))
+
+		console.log('261 \t this.stateDiff[fromAccountHex].balance[memoryMarker].from', fromAccountHex, this.stateDiff[fromAccountHex].balance[memoryMarker].from)
+
+		var toBal   = bigInt(this.stateDiff[toAccountHex].balance[memoryMarker].from.slice(2), 16);
+		this.stateDiff[toAccountHex].balance[memoryMarker].from   = "0x" + toBal.subtract(ctx.value).toString(16);
+    console.log('265 \t this.stateDiff[toAccountHex].balance[memoryMarker].from', toAccountHex, this.stateDiff[toAccountHex].balance[memoryMarker].from)
+
+		// Decrement the caller's nonce, and remove empty create targets
+		var toNonce = this.stateDiff[fromAccountHex].nonce[memoryMarker].from;
+		this.stateDiff[fromAccountHex].nonce[memoryMarker].from = "0x" + (toNonce - 1).toString(16);
+		this.stateDiff[fromAccountHex].nonce[memoryMarker].to = "0x" + toNonce.toString(16);
+
+		// Mark new contracts address as new/born ones
+		if (ctx.type == "CREATE" || ctx.type == "CREATE2") {
+			this.stateDiff[toAccountHex].type = this.diffMarkers.Born;
 		}
-
-		if (toType === changedType) {
-			var toBal   = bigInt(this.prestate[toAccountHex].balance[changedType].from.slice(2), 16);
-			this.prestate[toAccountHex].balance[changedType].from   = "0x" + toBal.subtract(ctx.value).toString(16);
-		}
-
-		if (fromType === changedType) {
-			// Decrement the caller's nonce, and remove empty create targets
-			var toNonce = this.prestate[fromAccountHex].nonce[changedType].from;
-			this.prestate[fromAccountHex].nonce[changedType].from = "0x" + (toNonce - 1).toString(16);
-			this.prestate[fromAccountHex].nonce[changedType].to = "0x" + toNonce.toString(16);
-		}
-
-		// if (ctx.type == "CREATE") {
-		// 	// We can blibdly delete the contract prestate, as any existing state would
-		// 	// have caused the transaction to be rejected as invalid in the first place.
-		// 	delete this.prestate[toAccountHex];
-		// }
 
 		this.format(db);
 
-		// Return the assembled allocations (prestate)
-		return this.prestate;
+		// Return the assembled allocations (stateDiff)
+		return this.stateDiff;
 	},
 
 	// step is invoked for every opcode that the VM executes.
 	step: function(log, db) {
 		// Add the current account if we just started tracing
-		if (this.prestate === null){
-			this.prestate = {};
+		if (this.stateDiff === null){
+			this.stateDiff = {};
 
 			// var contractAddr = log.contract.getAddress();
 			// console.log('ex',db.exists(contractAddr));
@@ -256,10 +338,33 @@
 			// Balance will potentially be wrong here, since this will include the value
 			// sent along with the message. We fix that in "result()".
 			this.lookupAccount(log.contract.getAddress(), db);
+
+			// this.lookupAccount(toAddress('0x893defcfe8dc3b7fe2b95c2ddd6415ac2f1eb582'), db);
 		}
+
+		// var refund = log.getRefund();
+    // console.log('refund', refund)
+		// this.logger.refund = refund
+
+		this.lastGasIn = log.getGas();
+		// var loga = {
+		// 	gasAvailable: log.getAvailableGas(),
+		// 	gasIn:   log.getGas(),
+		// 	gasCost: log.getCost(),
+		// }
+		// console.log('gasIn', loga.gasIn)
+		// if (loga.gasAvailable > 0) {
+		// 	console.log('AMAZINIIG', loga)
+		// }
+		// this.logger.push(loga)
+		// console.log(log.op.toString(), log.stack.peek(0).toString(16), log.stack.peek(1).toString(16), log.stack.peek(2).toString(16), log.stack.peek(3).toString(16), log.stack.peek(4).toString(16));
 		console.log(log.op.toString());
-		// Whenever new state is accessed, add it to the prestate
+
+		// Whenever new state is accessed, add it to the stateDiff
 		switch (log.op.toString()) {
+			// case "ORIGIN": case "CALLER": case "ADDRESS":
+			// 	console.log(toHex(toAddress(log.stack.peek(0).toString(16))));
+			// 	break;
 			case "EXTCODECOPY": case "EXTCODESIZE": case "BALANCE":
 				this.lookupAccount(toAddress(log.stack.peek(0).toString(16)), db);
 				break;
@@ -277,9 +382,9 @@
 				break;
 			case "CALL": case "CALLCODE": case "DELEGATECALL": case "STATICCALL":
 				var address = toAddress(log.stack.peek(1).toString(16));
-				if (isPrecompiled(address)) {
-					break;
-				}
+				// if (isPrecompiled(address)) {
+				// 	break;
+				// }
 				this.lookupAccount(address, db);
 				break;
 			case "SLOAD":
@@ -295,5 +400,12 @@
 	},
 
 	// fault is invoked when the actual execution of an opcode fails.
-	fault: function(log, db) {}
+	fault: function(log, db) {
+		console.log('fault', log.op.toString(), toHex(log.contract.getAddress()), log.stack.peek(0).toString(16), log.stack.peek(1).toString(16), log.stack.peek(2).toString(16), log.stack.peek(3).toString(16), log.stack.peek(4).toString(16));
+
+		var error = log.getError();
+    console.log('TCL: \t file: state_diff_tracer.js \t line 325 \t error', error)
+		var opError = log.getCallError();
+    console.log('TCL: \t file: state_diff_tracer.js \t line 327 \t opError', opError)
+	}
 }
