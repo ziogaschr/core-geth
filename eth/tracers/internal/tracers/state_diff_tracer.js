@@ -24,6 +24,7 @@
 
 	lastAccessedAccount: null,
 	lastGasIn: null,
+	hasError: false,
 
 	diffMarkers: {
 		Memory: "_",	// temp state used while running the tracer, will never be returned to the user
@@ -43,7 +44,7 @@
 	},
 
 	// lookupAccount injects the specified account into the stateDiff object.
-	lookupAccount: function(addr, db, type){
+	lookupAccount: function(addr, db, type) {
 		type = type || this.diffMarkers.Changed;
 
 		var memoryMarker = this.diffMarkers.Memory;
@@ -103,7 +104,11 @@
 		// var latestKnownNonce = accountData.nonce[memoryMarker].to || accountData.nonce[memoryMarker].from
 		// if (nonce && type === this.diffMarkers.Born) {
 		// 	accountData.nonce[memoryMarker].to = latestKnownNonce + 1;
-		if (nonce) {
+		// if state doesn't have the account, most probably because of EIP-161, then remove it
+		if (typeof nonce === "number" && nonce < accountData.nonce[memoryMarker].from) {
+			delete this.stateDiff[acc];
+			return;
+		} else if (nonce) {
 			accountData.nonce[memoryMarker].to = nonce;
 		}
 
@@ -183,12 +188,12 @@
 				this.isObjectEmpty(data.storage)
 		) {
 			return false;
-		} else if (data.balance[bornMarker] === "0x0" &&
-				data.nonce[bornMarker] === "0x0" &&
-				data.code[bornMarker] === "0x" &&
-				this.isObjectEmpty(data.storage)
-		) {
-			return false;
+		// } else if (data.balance[bornMarker] === "0x0" &&
+		// 		data.nonce[bornMarker] === "0x0" &&
+		// 		data.code[bornMarker] === "0x" &&
+		// 		this.isObjectEmpty(data.storage)
+		// ) {
+		// 	return false;
 		}
 		return true;
 	},
@@ -198,6 +203,11 @@
 			// Fetch latest balance
 			// TODO: optimise
 			this.lookupAccount(toAddress(acc), db);
+
+			// has been cleared in lookupAccount
+			if (this.stateDiff[acc] === undefined) {
+				continue;
+			}
 
 			var accountData = this.stateDiff[acc];
 			var type = accountData.type;
@@ -217,6 +227,11 @@
 				accountData.balance = this.formatSingle(accountData.balance, type);
 				accountData.nonce = this.formatSingle(accountData.nonce, type);
 				accountData.code = this.formatSingle(accountData.code, type);
+			}
+
+			if (db.isEmpty(toAddress(acc))) {
+				delete this.stateDiff[acc];
+				continue;
 			}
 
 			// optimisation: pre-check if we have changes before parsing storage state
@@ -261,7 +276,10 @@
 	step: function(log, db) {
 		// Capture any errors immediately
 		var error = log.getError();
-		// var opError = log.getCallError();
+		var opError = log.getCallError();
+		if (!this.hasError && (error !== undefined || opError !== undefined)) {
+			this.hasError = true;
+		}
 		if ((error !== undefined) &&
 				this.lastAccessedAccount !== null) {
         console.log('damn line 351 \t this.lastAccessedAccount',log.op.toString(), this.lastAccessedAccount,error)
@@ -369,6 +387,9 @@
     console.log('TCL: \t file: state_diff_tracer.js \t line 325 \t error', error)
 		var opError = log.getCallError();
 		console.log('TCL: \t file: state_diff_tracer.js \t line 327 \t opError', opError)
+		if (!this.hasError && (error !== undefined || opError !== undefined)) {
+			this.hasError = true;
+		}
 
 	},
 
@@ -389,7 +410,21 @@ console.log(ctx)
 // this.lastGasIn = log.getGas();
 // console.log('TCL: \t file: state_diff_tracer.js \t line 257 \t this.lastGasIn', this.lastGasIn)
 
+		var addValueToFromBalance = false;
+
+		// EIP161, when calling a non existing account, passing no value,
+		// then nothing happens and `CaptureState` (and  inline `step`) method are not being called,
+		// so no calculations or logic is being applied in the tracer.
+		// For this reason we initiate the state here.
+		if (this.stateDiff === null) {
+			this.stateDiff = {};
+			addValueToFromBalance = true;
+		}
+		if (this.lastGasIn === null) {
+			this.lastGasIn = ctx.gas;
+		}
 		this.lookupAccount(toAddress(ctx.from), db);
+		this.lookupAccount(toAddress(ctx.to), db);
 		this.lookupAccount(toAddress(ctx.coinbase), db);
 
 		var fromAccountHex = toHex(ctx.from);
@@ -397,8 +432,8 @@ console.log(ctx)
 		var coinbaseHex = toHex(ctx.coinbase);
 
 
-		var gasCost = (ctx.gasLimit - this.lastGasIn) * ctx.gasPrice;
     // console.log('255 \t gasCost', gasCost)
+		var gasCost = (ctx.gasLimit - ctx.gas + ctx.gasUsed) * ctx.gasPrice;
 // 8230
 
 // do_virtual_call gas 106376
@@ -444,7 +479,11 @@ console.log(ctx)
 
 		if (this.stateDiff[fromAccountHex] !== undefined) {
 			var fromBal = bigInt(this.stateDiff[fromAccountHex].balance[memoryMarker].from.slice(2), 16);
-			this.stateDiff[fromAccountHex].balance[memoryMarker].from = "0x" + fromBal.add(ctx.value).add(gasCost).toString(16);
+			fromBal = fromBal.add(gasCost);
+			if (!this.hasError) {
+				fromBal = fromBal.add(ctx.value);
+			}
+			this.stateDiff[fromAccountHex].balance[memoryMarker].from = "0x" + fromBal.toString(16);
 			// console.log('305 \t fromBal', fromBal, ctx.value, gasCost, fromBal.add(ctx.value), fromBal.add(ctx.value).add(gasCost))
 
 			// Decrement the caller's nonce, and remove empty create targets
