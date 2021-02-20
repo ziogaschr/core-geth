@@ -871,7 +871,6 @@ func traceCall(ctx context.Context, eth *Ethereum, args ethapi.CallArgs, blockNr
 	}
 
 	taskExtraContext := map[string]interface{}{
-		"blockNumber": header.Number.Uint64(),
 		"blockNumber":            header.Number.Uint64(),
 		"blockHash":              header.Hash().Hex(),
 		"canTransferBalanceFrom": canTransferBalanceFrom,
