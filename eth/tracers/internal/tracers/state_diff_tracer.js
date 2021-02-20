@@ -22,8 +22,10 @@
 
 	debugState: {},
 
+	lastUsedContractAddress: null,
 	lastAccessedAccount: null,
 	lastGasIn: null,
+	lastRefund: 0,
 	hasError: false,
 
 	diffMarkers: {
@@ -68,9 +70,9 @@
 			// 	type = this.diffMarkers.Born;
 			// }
 
-
 			this.stateDiff[acc] = {
 				_type: type,  // temp storage of account's initial type
+				_error: false, // evm returned an error
 				_final: false, // stop updating state if account's state marked as final
 				balance: {
 					[memoryMarker]: {
@@ -127,6 +129,8 @@
 	lookupStorage: function(addr, key, val, db){
 		var acc = toHex(addr);
 		var idx = toHex(key);
+
+		this.lastAccessedAccount = acc;
 
 		var memoryMarker = this.diffMarkers.Memory;
 
@@ -205,7 +209,7 @@
 
 	format: function(db) {
 		for (var acc in this.stateDiff) {
-			// Fetch latest balance
+			// fetch latest balance
 			// TODO: optimise
 			this.lookupAccount(toAddress(acc), db);
 
@@ -215,8 +219,17 @@
 			}
 
 			var accountData = this.stateDiff[acc];
+
+			// remove accounts with errors from output. Do this check last (not in another method),
+			// otherwise account might be re-added if one of ctx.[from|to|coinbase] from within this.result()
+			if (accountData._error) {
+				delete this.stateDiff[acc];
+				continue;
+			}
+
 			var type = accountData._type;
 			delete accountData._type;
+			delete accountData._error;
 			delete accountData._final;
 
 			var memoryMarker = this.diffMarkers.Memory;
@@ -285,11 +298,11 @@
 		if (!this.hasError && (error !== undefined || opError !== undefined)) {
 			this.hasError = true;
 		}
-		if ((error !== undefined) &&
+		if (error !== undefined &&
 				this.lastAccessedAccount !== null) {
         // console.log('damn line 318 \t this.lastAccessedAccount',log.op.toString(), this.lastAccessedAccount,error)
 
-			delete this.stateDiff[this.lastAccessedAccount];
+			this.stateDiff[this.lastAccessedAccount]._error = true;  // mark account that had an error
 			this.lastAccessedAccount = null;
 			return;
 		}
@@ -313,6 +326,7 @@
 		// this.logger.refund = refund
 
 		this.lastGasIn = log.getGas();
+		this.lastRefund = log.getRefund();
     // console.log('this.lastGasIn', 106376 - this.lastGasIn, 106376-log.getAvailableGas())
 		// var loga = {
 		// 	gasAvailableGas: log.getAvailableGas(),
@@ -395,6 +409,11 @@
 			this.hasError = true;
 		}
 
+		if (this.hasError && this.lastAccessedAccount !== null) {
+			this.stateDiff[this.lastAccessedAccount]._error = true;  // mark account that had an error
+			this.lastAccessedAccount = null;
+			return;
+		}
 	},
 
 	// result is invoked when all the opcodes have been iterated over and returns
@@ -431,9 +450,13 @@
 		var fromAccountHex = toHex(ctx.from);
 		var toAccountHex = toHex(ctx.to);
 		var coinbaseHex = toHex(ctx.coinbase);
+		var gasCost = bigInt(ctx.gasLimit)
+										.subtract(bigInt(ctx.gas))
+										.add(bigInt(ctx.gasUsed))
+										.subtract(refund)
+										.multiply(bigInt(ctx.gasPrice));
 
 
-		var gasCost = (ctx.gasLimit - ctx.gas + ctx.gasUsed) * ctx.gasPrice;
 
 
 		// At this point, we need to deduct the "value" from the
@@ -480,7 +503,7 @@
 			var fromAcc = this.stateDiff[fromAccountHex];
 			var fromAccB = fromAcc.balance[memoryMarker];
 
-			// Add back call value and gasCost to the start balance,
+			// Add back call value, gasCost and refunds to the start balance,
 			// as it has been transfered before the CaptureStart and the interpreter execution
 			var fromBal = bigInt(fromAccB.from.slice(2), 16);
 			if (fromAccountHex !== coinbaseHex) {
