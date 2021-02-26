@@ -843,9 +843,12 @@ func traceCall(ctx context.Context, eth *Ethereum, args ethapi.CallArgs, blockNr
 	msg := args.ToMessage(eth.APIBackend.RPCGasCap())
 	vmctx := core.NewEVMContext(msg, header, eth.blockchain, nil)
 
-	// Store the truth on wether from acount has enough balance for context usage
 	originalCanTransfer := vmctx.CanTransfer
-	canTransferBalanceFrom := vmctx.CanTransfer(statedb, msg.From(), msg.Value())
+	// Store the truth on wether from acount has enough balance for context usage
+	gasCost := new(big.Int).Mul(new(big.Int).SetUint64(msg.Gas()), msg.GasPrice())
+	totalCost := new(big.Int).Add(gasCost, msg.Value())
+	hasFromSufficientBalanceForValueAndGasCost := vmctx.CanTransfer(statedb, msg.From(), totalCost)
+	hasFromSufficientBalanceForGasCost := vmctx.CanTransfer(statedb, msg.From(), gasCost)
 
 	// This is needed for trace_call (debug mode),
 	// as the Transaction is being run on top of the block transactions,
@@ -871,9 +874,10 @@ func traceCall(ctx context.Context, eth *Ethereum, args ethapi.CallArgs, blockNr
 	}
 
 	taskExtraContext := map[string]interface{}{
-		"blockNumber":            header.Number.Uint64(),
-		"blockHash":              header.Hash().Hex(),
-		"canTransferBalanceFrom": canTransferBalanceFrom,
+		"blockNumber": header.Number.Uint64(),
+		"blockHash":   header.Hash().Hex(),
+		"hasFromSufficientBalanceForValueAndGasCost": hasFromSufficientBalanceForValueAndGasCost,
+		"hasFromSufficientBalanceForGasCost":         hasFromSufficientBalanceForGasCost,
 		"gasLimit": msg.Gas(),
 		"gasPrice": msg.GasPrice(),
 	}
