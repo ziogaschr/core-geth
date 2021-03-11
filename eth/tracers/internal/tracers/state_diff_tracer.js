@@ -701,10 +701,10 @@
 
 			var fromBal = toAcc.balance[memoryMarker].from;
 
-			// Remove transferred value, as it has been transfered before the CaptureStart and the interpreter execution
-			toAcc.balance[memoryMarker].from = fromBal.subtract(ctx.value);
-
-			if (!hasFromSufficientBalanceForValueAndGasCost) {
+			if (hasFromSufficientBalanceForValueAndGasCost) {
+				// Remove transferred value, as it has been transfered before the CaptureStart and the interpreter execution
+				toAcc.balance[memoryMarker].from = fromBal.subtract(ctx.value);
+			} else {
 				// In case from account doesn't have enough balance, the transfer won't happen
 				toAcc.balance[memoryMarker].to = toAcc.balance[memoryMarker].from;
 			}
