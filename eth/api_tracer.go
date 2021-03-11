@@ -845,6 +845,7 @@ func traceCall(ctx context.Context, eth *Ethereum, args ethapi.CallArgs, blockNr
 	vmctx := core.NewEVMContext(msg, header, eth.blockchain, nil)
 
 	originalCanTransfer := vmctx.CanTransfer
+
 	// Store the truth on wether from acount has enough balance for context usage
 	gasCost := new(big.Int).Mul(new(big.Int).SetUint64(msg.Gas()), msg.GasPrice())
 	totalCost := new(big.Int).Add(gasCost, msg.Value())
@@ -856,11 +857,9 @@ func traceCall(ctx context.Context, eth *Ethereum, args ethapi.CallArgs, blockNr
 	// which might lead into ErrInsufficientFundsForTransfer error
 	vmctx.CanTransfer = func(db vm.StateDB, sender common.Address, amount *big.Int) bool {
 		if msg.From() == sender {
-			// fmt.Println("msg:", msg.From(), amount)
 			return true
 		}
 		res := originalCanTransfer(db, sender, amount)
-		// fmt.Println("originalCanTransfer:", res)
 		return res
 	}
 
@@ -874,9 +873,8 @@ func traceCall(ctx context.Context, eth *Ethereum, args ethapi.CallArgs, blockNr
 		db.AddBalance(recipient, amount)
 	}
 
+	// Add extra context needed for state_diff
 	taskExtraContext := map[string]interface{}{
-		"blockNumber": header.Number.Uint64(),
-		"blockHash":   header.Hash().Hex(),
 		"hasFromSufficientBalanceForValueAndGasCost": hasFromSufficientBalanceForValueAndGasCost,
 		"hasFromSufficientBalanceForGasCost":         hasFromSufficientBalanceForGasCost,
 		"gasLimit":                                   msg.Gas(),
