@@ -883,9 +883,7 @@ func traceCall(ctx context.Context, eth *Ethereum, args ethapi.CallArgs, blockNr
 		"hasFromSufficientBalanceForGasCost":         hasFromSufficientBalanceForGasCost,
 		"gasLimit":                                   msg.Gas(),
 		"gasPrice":                                   msg.GasPrice(),
-	}
-	if coinbase, err := eth.engine.Author(header); err == nil {
-		taskExtraContext["coinbase"] = coinbase
+		"coinbase":                                   vmctx.Coinbase,
 	}
 
 	return traceTx(ctx, eth, msg, vmctx, statedb, taskExtraContext, config)
@@ -985,6 +983,11 @@ func traceTx(ctx context.Context, eth *Ethereum, message core.Message, vmctx vm.
 	}
 	// Run the transaction with tracing enabled.
 	vmenv := vm.NewEVM(vmctx, statedb, eth.blockchain.Config(), vm.Config{Debug: true, Tracer: tracer})
+
+	switch tracer.(type) {
+	case *tracers.Tracer:
+		tracer.(*tracers.Tracer).CapturePreEVM(vmenv, message.From(), vmctx.Coinbase, message.To())
+	}
 
 	result, err := core.ApplyMessage(vmenv, message, new(core.GasPool).AddGas(message.Gas()))
 	if err != nil {

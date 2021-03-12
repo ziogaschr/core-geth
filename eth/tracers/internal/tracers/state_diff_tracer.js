@@ -45,6 +45,29 @@
 		return typeof val !== "string" || val.indexOf("0x") !== 0 ? "0x" + val.toString(16) : val;
 	},
 
+	accountInit: function(acc, type) {
+		if (this.stateDiff[acc] === undefined) {
+			var memoryMarker = this.diffMarkers.Memory;
+
+			this.stateDiff[acc] = {
+				_type: type || this.diffMarkers.Changed, // temp storage of account's initial type
+				_removed: false, // removed from state
+				_error: false, // error returned by the VM
+				_final: false, // stop updating state if account's state marked as final
+				balance: {
+					[memoryMarker]: {}
+				},
+				nonce: {
+					[memoryMarker]: {}
+				},
+				code: {
+					[memoryMarker]: {}
+				},
+				storage: {}
+			};
+		}
+	},
+
 	// lookupAccount injects the specified account into the stateDiff object
 	lookupAccount: function(addr, db, type) {
 		var acc = toHex(addr);
@@ -63,32 +86,16 @@
 
 		var memoryMarker = this.diffMarkers.Memory;
 
-		if (this.stateDiff[acc] === undefined) {
-			this.stateDiff[acc] = {
-				_type: type || this.diffMarkers.Changed, // temp storage of account's initial type
-				_removed: false, // removed from state
-				_error: false, // error returned by the VM
-				_final: false, // stop updating state if account's state marked as final
-				balance: {
-					[memoryMarker]: {
-						from: balance,
-					}
-				},
-				nonce: {
-					[memoryMarker]: {
-						from: nonce,
-					}
-				},
-				code: {
-					[memoryMarker]: {
-						from: code,
-					}
-				},
-				storage: {}
-			};
-		}
+		this.accountInit(acc, type);
 
 		var accountData = this.stateDiff[acc];
+
+		// if (balance|nonce|code).from is not filled, then this is the first time lookupAccount is called
+		if (this.stateDiff[acc].balance[memoryMarker].from === undefined) {
+			accountData.balance[memoryMarker].from = balance;
+			accountData.nonce[memoryMarker].from = nonce;
+			accountData.code[memoryMarker].from = code;
+		}
 
 		// force type change
 		if (type !== undefined) {
@@ -124,12 +131,11 @@
 		var acc = toHex(addr);
 		this.lastAccessedAccount = acc;
 
-		if (this.stateDiff[acc] === undefined) {
-			return;
-		}
+		this.accountInit(acc);
+
+		var accountData = this.stateDiff[acc];
 
 		var memoryMarker = this.diffMarkers.Memory;
-		var accountData = this.stateDiff[acc];
 		var idx = toHex(key);
 
 		if (accountData.storage[idx] === undefined) {
@@ -352,8 +358,10 @@
 	// init is invoked on the first call VM executes.
 	// IMPORTANT: it is being called only on contract calls and not on transfers,
 	//            this is being handled in this.result()
-	init: function(ctx, log, db) {
+	init: function(ctx, db) {
 		this.hasInitCalled = true;
+
+		console.log('init', ctx)
 
 		// get actual "from" values for from|to|coinbase accounts.
 		// Balances will potentially be wrong here, since they will include the value
@@ -362,10 +370,12 @@
 		this.lookupAccount(ctx.from, db);
 		this.lookupAccount(ctx.coinbase, db);
 
-		var toAccHex = toHex(ctx.to);
-		if(!/^(0x)?0*$/.test(toAccHex)) {
+		// var toAccHex = toHex(ctx.to);
+		// if(!/^(0x)?0*$/.test(toAccHex)) {
+		if (ctx.to !== undefined) {
 			this.lookupAccount(ctx.to, db);
 		}
+		// }
 
 		// TODO: do we need to check for contractAddress? is ctx.to === contractAddress?
 		// var contractAddress = log.contract.getAddress();
@@ -716,7 +726,7 @@
 				fromBal = fromBal.add(ctx.value);
 			}
 
-			fromAccB.from = fromBal;
+			// fromAccB.from = fromBal;
 
 			// in case account doesn't have enough balance, the transfer won't happen,
 			// though the gasCost will still have to be paid
@@ -727,7 +737,7 @@
 
 			// decrement the caller's nonce,
 			// as it has been increased before the CaptureStart and the interpreter execution
-			fromAcc.nonce[memoryMarker].from -= 1;
+			// fromAcc.nonce[memoryMarker].from -= 1;
 
 			// remove any errors marked on the from account, as it has to be included on output
 			// happens on mordor tx: 0x8f26c1acfce0178a2b037d85feeea99bb961bb46f541ad8c01c6668455952221
@@ -742,7 +752,7 @@
 
 			if (hasFromSufficientBalanceForValueAndGasCost) {
 				// remove transferred value, as it has been transfered before the CaptureStart and the interpreter execution
-				toAcc.balance[memoryMarker].from = toAcc.balance[memoryMarker].from.subtract(ctx.value);
+				// toAcc.balance[memoryMarker].from = toAcc.balance[memoryMarker].from.subtract(ctx.value);
 			} else {
 				// in case from account doesn't have enough balance, the transfer won't happen
 				toAcc.balance[memoryMarker].to = toAcc.balance[memoryMarker].from;
@@ -774,7 +784,7 @@
 				// TODO: check for GetEIP161abcTransition too?
 				if (!this.hasInitCalled
 						|| isCallTypeOnNonExistingAccount) {
-					coinbaseAcc.balance[memoryMarker].from = coinbaseAcc.balance[memoryMarker].from.subtract(feesValue);
+					// coinbaseAcc.balance[memoryMarker].from = coinbaseAcc.balance[memoryMarker].from.subtract(feesValue);
 				}
 			}
 
