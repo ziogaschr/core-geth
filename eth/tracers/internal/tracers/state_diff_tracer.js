@@ -50,6 +50,13 @@
 		var acc = toHex(addr);
 		this.lastAccessedAccount = acc;
 
+		// no need to fetch updates, as the account is marked as final
+		// which means that some manual calculations have been performed, usually in results()
+		// NOTE: it moved at the top of fuction in order we don't read from statedb when not needed
+		if (this.stateDiff[acc] !== undefined && this.stateDiff[acc]._final) {
+			return;
+		}
+
 		var balance = db.getBalance(addr);
 		var code = toHex(db.getCode(addr));
 		var nonce = db.getNonce(addr);
@@ -82,13 +89,6 @@
 		}
 
 		var accountData = this.stateDiff[acc];
-
-		// no need to fetch updates, as the account is marked as final
-		// which means that some manual calculations have been performed,
-		// usually in results()
-		if (accountData._final) {
-			return;
-		}
 
 		// force type change
 		if (type !== undefined) {
@@ -246,7 +246,6 @@
 		for (var acc in this.stateDiff) {
 			var accountAddress = toAddress(acc);
 			// fetch latest balance
-			// TODO: optimise, don't check for from|to|coinbase
 			this.lookupAccount(accountAddress, db);
 
 			// FIXME: seems safe to remove as we remove deletion from within lookupAccount
@@ -267,15 +266,14 @@
 				continue;
 			}
 
-			// TODO: check if it can be removed
 			// check if it is a new borned account
-			// if (accountData._type === changedMarker
-			// 		&& accountData.balance[memoryMarker].from == 0
-			// 		&& accountData.code[memoryMarker].from === "0x"
-			// 		&& accountData.nonce[memoryMarker].from == 0) {
-			// 	console.log('Born withing the formatter')
-			// 	accountData._type = this.diffMarkers.Born;
-			// }
+			// happens on mordor's tx: 0xc468750bd7d73f53ff3fdc74201245910d84d84bfc5c40d97e4c5a8928c92187
+			if (accountData._type === changedMarker
+					&& accountData.balance[memoryMarker].from == 0
+					&& accountData.code[memoryMarker].from === "0x"
+					&& accountData.nonce[memoryMarker].from == 0) {
+				accountData._type = this.diffMarkers.Born;
+			}
 
 			var type = accountData._type;
 			delete accountData._type;
@@ -364,12 +362,12 @@
 		this.lookupAccount(ctx.from, db);
 		this.lookupAccount(ctx.coinbase, db);
 
-		// TODO: do we need to check for contractAddress? is ctx.to === contractAddress?
 		var toAccHex = toHex(ctx.to);
 		if(!/^(0x)?0*$/.test(toAccHex)) {
 			this.lookupAccount(ctx.to, db);
 		}
 
+		// TODO: do we need to check for contractAddress? is ctx.to === contractAddress?
 		// var contractAddress = log.contract.getAddress();
 		// if (toHex(contractAddress) !== toAccHex) {
 		// 	this.lookupAccount(contractAddress, db);
@@ -497,7 +495,7 @@
 
 		var isCreateType = ctx.type == "CREATE" || ctx.type == "CREATE2";
 		var isCallTypeWithZeroCodeForContract = !isCreateType && toHex(db.getCode(ctx.to)) == "0x"
-		var isCallTypeOnNonExistingAccount = ctx.type == "CALL" && ctx.value.isZero() && !db.exists(ctx.to)
+		var isCallTypeOnNonExistingAccount = ctx.type == "CALL" && ctx.value.isZero() && !db.exists(ctx.to) && !isPrecompiled(ctx.to)
 
 
 		// START DEBUGGING
