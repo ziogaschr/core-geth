@@ -866,15 +866,14 @@ func traceCall(ctx context.Context, eth *Ethereum, args ethapi.CallArgs, blockNr
 
 	// If the actual transaction would fail, then their is no reason to actually transfer any balance at all
 	vmctx.Transfer = func(db vm.StateDB, sender, recipient common.Address, amount *big.Int) {
-		var tamount big.Int
-		tamount.Set(amount)
+		toAmount := new(big.Int).Set(amount)
 
 		senderBalance := db.GetBalance(sender)
-		if senderBalance.Cmp(&tamount) < 0 {
-			tamount = *big.NewInt(0)
+		if senderBalance.Cmp(toAmount) < 0 {
+			toAmount.Set(big.NewInt(0))
 		}
 
-		originalTransfer(db, sender, recipient, &tamount)
+		originalTransfer(db, sender, recipient, toAmount)
 	}
 
 	// Add extra context needed for state_diff
