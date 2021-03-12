@@ -18,6 +18,7 @@
 // the transaction from a custom assembled genesisT block.
 {
 	DEBUG: false,
+	COMPATIBILITY_TESTING: true,
 
 	// stateDiff is the genesisT that we're building.
 	stateDiff: {},
@@ -245,7 +246,7 @@
 		for (var acc in this.stateDiff) {
 			var accountAddress = toAddress(acc);
 			// fetch latest balance
-			// TODO: optimise
+			// TODO: optimise, don't check for from|to|coinbase
 			this.lookupAccount(accountAddress, db);
 
 			// FIXME: seems safe to remove as we remove deletion from within lookupAccount
@@ -268,12 +269,13 @@
 
 			// TODO: check if it can be removed
 			// check if it is a new borned account
-			if (accountData._type  === changedMarker
-					&& accountData.balance[memoryMarker].from == 0
-					&& accountData.code[memoryMarker].from === "0x"
-					&& accountData.nonce[memoryMarker].from == 0) {
-				accountData._type = this.diffMarkers.Born;
-			}
+			// if (accountData._type === changedMarker
+			// 		&& accountData.balance[memoryMarker].from == 0
+			// 		&& accountData.code[memoryMarker].from === "0x"
+			// 		&& accountData.nonce[memoryMarker].from == 0) {
+			// 	console.log('Born withing the formatter')
+			// 	accountData._type = this.diffMarkers.Born;
+			// }
 
 			var type = accountData._type;
 			delete accountData._type;
@@ -291,9 +293,7 @@
 				accountData.code = this.formatSingle(accountData.code, type);
 			}
 
-			// TODO: check if it can abe removed
 			if (db.isEmpty(toAddress(acc))) {
-				console.log('isEmpty',acc);
 				delete this.stateDiff[acc];
 				continue;
 			}
@@ -370,10 +370,10 @@
 			this.lookupAccount(ctx.to, db);
 		}
 
-		var contractAddress = log.contract.getAddress();
-		if (toHex(contractAddress) !== toAccHex) {
-			this.lookupAccount(contractAddress, db);
-		}
+		// var contractAddress = log.contract.getAddress();
+		// if (toHex(contractAddress) !== toAccHex) {
+		// 	this.lookupAccount(contractAddress, db);
+		// }
 	},
 
 	// step is invoked for every opcode that the VM executes
@@ -691,7 +691,7 @@
 		// will not be run at all and will not change the state
 		if (!hasFromSufficientBalanceForGasCost && !hasFromSufficientBalanceForValueAndGasCost && ctx.value.isPositive()) {
 			// TODO: remove testing data
-			if (this.DEBUG) {
+			if (this.DEBUG || this.COMPATIBILITY_TESTING) {
 				return {'reason4': true};
 			}
 			return {};
@@ -807,7 +807,7 @@
 
 		this.format(db);
 
-		if (this.DEBUG) {
+		if (this.DEBUG || this.COMPATIBILITY_TESTING) {
 			if (hasFromSufficientBalanceForGasCost
 					&& !hasFromSufficientBalanceForValueAndGasCost
 					&& ctx.value.isPositive()
