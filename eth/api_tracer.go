@@ -845,6 +845,7 @@ func traceCall(ctx context.Context, eth *Ethereum, args ethapi.CallArgs, blockNr
 	vmctx := core.NewEVMContext(msg, header, eth.blockchain, nil)
 
 	originalCanTransfer := vmctx.CanTransfer
+	originalTransfer := vmctx.Transfer
 
 	// Store the truth on wether from acount has enough balance for context usage
 	gasCost := new(big.Int).Mul(new(big.Int).SetUint64(msg.Gas()), msg.GasPrice())
@@ -865,12 +866,15 @@ func traceCall(ctx context.Context, eth *Ethereum, args ethapi.CallArgs, blockNr
 
 	// If the actual transaction would fail, then their is no reason to actually transfer any balance at all
 	vmctx.Transfer = func(db vm.StateDB, sender, recipient common.Address, amount *big.Int) {
+		var tamount big.Int
+		tamount.Set(amount)
+
 		senderBalance := db.GetBalance(sender)
-		if senderBalance.Cmp(amount) < 0 {
-			amount = big.NewInt(0)
+		if senderBalance.Cmp(&tamount) < 0 {
+			tamount = *big.NewInt(0)
 		}
-		db.SubBalance(sender, amount)
-		db.AddBalance(recipient, amount)
+
+		originalTransfer(db, sender, recipient, &tamount)
 	}
 
 	// Add extra context needed for state_diff
