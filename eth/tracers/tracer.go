@@ -568,14 +568,11 @@ func wrapError(context string, err error) error {
 	return fmt.Errorf("%v    in server-side tracer function '%v'", err, context)
 }
 
-func (jst *Tracer) CapturePreEVM(env *vm.EVM, from, coinbase common.Address, to *common.Address) error {
+func (jst *Tracer) CapturePreEVM(env *vm.EVM, inputs map[string]interface{}) error {
 	jst.dbWrapper.db = env.StateDB
 
-	jst.ctx["from"] = from
-	jst.ctx["coinbase"] = coinbase
-
-	if to != nil {
-		jst.ctx["to"] = *to
+	for key, val := range inputs {
+		jst.ctx[key] = val
 	}
 
 	if jst.vm.GetPropString(jst.tracerObject, "init") {
@@ -602,13 +599,6 @@ func (jst *Tracer) CaptureStart(from common.Address, to common.Address, create b
 	jst.ctx["gas"] = gas
 	jst.ctx["value"] = value
 
-	return nil
-}
-
-func (jst *Tracer) CaptureExtraContext(inputs map[string]interface{}) error {
-	for key, val := range inputs {
-		jst.ctx[key] = val
-	}
 	return nil
 }
 

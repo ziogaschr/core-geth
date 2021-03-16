@@ -880,9 +880,6 @@ func traceCall(ctx context.Context, eth *Ethereum, args ethapi.CallArgs, blockNr
 	taskExtraContext := map[string]interface{}{
 		"hasFromSufficientBalanceForValueAndGasCost": hasFromSufficientBalanceForValueAndGasCost,
 		"hasFromSufficientBalanceForGasCost":         hasFromSufficientBalanceForGasCost,
-		"gasLimit":                                   msg.Gas(),
-		"gasPrice":                                   msg.GasPrice(),
-		"coinbase":                                   vmctx.Coinbase,
 	}
 
 	return traceTx(ctx, eth, msg, vmctx, statedb, taskExtraContext, config)
@@ -970,10 +967,6 @@ func traceTx(ctx context.Context, eth *Ethereum, message core.Message, vmctx vm.
 		}()
 		defer cancel()
 
-		if extraContext != nil {
-			tracer.(*tracers.Tracer).CaptureExtraContext(extraContext)
-		}
-
 	case config == nil:
 		tracer = vm.NewStructLogger(nil)
 
@@ -985,7 +978,21 @@ func traceTx(ctx context.Context, eth *Ethereum, message core.Message, vmctx vm.
 
 	switch tracer.(type) {
 	case *tracers.Tracer:
-		tracer.(*tracers.Tracer).CapturePreEVM(vmenv, message.From(), vmctx.Coinbase, message.To())
+		if extraContext == nil {
+			extraContext = map[string]interface{}{}
+		}
+
+		// Add useful context for all tracers
+		extraContext["from"] = message.From()
+		if message.To() != nil {
+			extraContext["msgTo"] = *message.To()
+		}
+		extraContext["coinbase"] = vmctx.Coinbase
+
+		extraContext["gasLimit"] = message.Gas()
+		extraContext["gasPrice"] = message.GasPrice()
+
+		tracer.(*tracers.Tracer).CapturePreEVM(vmenv, extraContext)
 	}
 
 	result, err := core.ApplyMessage(vmenv, message, new(core.GasPool).AddGas(message.Gas()))
