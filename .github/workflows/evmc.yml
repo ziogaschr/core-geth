@@ -10,7 +10,7 @@ jobs:
 
   build:
     name: EWASM State Tests
-    runs-on: [ubuntu-latest, macos-latest]
+    runs-on: macos-latest
     steps:
 
       - name: Set up Go 1.x
