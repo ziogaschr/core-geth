@@ -60,7 +60,8 @@ jobs:
 
       - name: Get dependencies
         run: |
-          go get golang.org/x/mobile/cmd/gomobile
+          go get -d golang.org/x/mobile/cmd/gomobile
+          go get -d golang.org/x/mobile/bind
           gomobile init
 
       - name: Run tests
