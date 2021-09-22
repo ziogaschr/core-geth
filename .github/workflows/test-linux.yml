@@ -58,17 +58,10 @@ jobs:
         with:
           submodules: recursive
 
-      - name: Get dependencies
+      - name: Run tests
         env:
           GO111MODULE: on
         run: |
           go env
-          go env -w GO111MODULE=auto
-          go mod tidy
-          env GO111MODULE=on go install golang.org/x/mobile/cmd/gomobile@latest
-          env GO111MODULE=on gomobile init
-
-      - name: Run tests
-        run: |
           make all
           make test
