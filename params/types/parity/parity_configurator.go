@@ -106,6 +106,18 @@ func (spec *ParityChainSpec) SetChainID(i *big.Int) error {
 	return nil
 }
 
+func (spec *ParityChainSpec) GetSupportedProtocolVersions() []uint {
+	if len(spec.Params.supportedProtocolVersions) != 0 {
+		spec.Params.supportedProtocolVersions = vars.DefaultProtocolVersions
+	}
+	return spec.Params.supportedProtocolVersions
+}
+
+func (spec *ParityChainSpec) SetSupportedProtocolVersions(p []uint) error {
+	spec.Params.supportedProtocolVersions = p
+	return nil
+}
+
 func (spec *ParityChainSpec) GetEIP7Transition() *uint64 {
 	return spec.Engine.Ethash.Params.HomesteadTransition.Uint64P()
 }
@@ -674,6 +686,9 @@ func (spec *ParityChainSpec) GetConsensusEngineType() ctypes.ConsensusEngineT {
 	if spec.Engine.Clique.Params.Period != nil && spec.Engine.Clique.Params.Epoch != nil {
 		return ctypes.ConsensusEngineT_Clique
 	}
+	if spec.Engine.Lyra2.Params.MinimumDifficulty != nil {
+		return ctypes.ConsensusEngineT_Lyra2
+	}
 	if spec.Engine.Ethash.Params.MinimumDifficulty != nil {
 		return ctypes.ConsensusEngineT_Ethash
 	}
@@ -708,6 +723,19 @@ func (spec *ParityChainSpec) MustSetConsensusEngineType(t ctypes.ConsensusEngine
 	default:
 		return ctypes.ErrUnsupportedConfigFatal
 	}
+}
+
+func (spec *ParityChainSpec) GetCatalystTransition() *uint64 {
+	return spec.Engine.Ethash.Params.CatalystBlock.Uint64P()
+}
+
+func (spec *ParityChainSpec) SetCatalystTransition(n *uint64) error {
+	if n == nil {
+		spec.Engine.Ethash.Params.CatalystBlock = nil
+		return nil
+	}
+	spec.Engine.Ethash.Params.CatalystBlock = new(ParityU64).SetUint64(n)
+	return nil
 }
 
 func (spec *ParityChainSpec) GetEthashMinimumDifficulty() *big.Int {
@@ -995,14 +1023,39 @@ func (spec *ParityChainSpec) SetEIP2315Transition(i *uint64) error {
 }
 
 func (spec *ParityChainSpec) GetEIP2929Transition() *uint64 {
-	return nil
+	return spec.Params.EIP2929Transition.Uint64P()
 }
 
 func (spec *ParityChainSpec) SetEIP2929Transition(n *uint64) error {
-	if n == nil {
-		return nil
-	}
-	return ctypes.ErrUnsupportedConfigFatal
+	spec.Params.EIP2929Transition = new(ParityU64).SetUint64(n)
+	return nil
+}
+
+func (spec *ParityChainSpec) GetEIP2930Transition() *uint64 {
+	return spec.Params.EIP2930Transition.Uint64P()
+}
+
+func (spec *ParityChainSpec) SetEIP2930Transition(n *uint64) error {
+	spec.Params.EIP2930Transition = new(ParityU64).SetUint64(n)
+	return nil
+}
+
+func (spec *ParityChainSpec) GetEIP2565Transition() *uint64 {
+	return spec.Params.EIP2565Transition.Uint64P()
+}
+
+func (spec *ParityChainSpec) SetEIP2565Transition(n *uint64) error {
+	spec.Params.EIP2565Transition = new(ParityU64).SetUint64(n)
+	return nil
+}
+
+func (spec *ParityChainSpec) GetEIP2718Transition() *uint64 {
+	return spec.Params.EIP2718Transition.Uint64P()
+}
+
+func (spec *ParityChainSpec) SetEIP2718Transition(n *uint64) error {
+	spec.Params.EIP2718Transition = new(ParityU64).SetUint64(n)
+	return nil
 }
 
 func (spec *ParityChainSpec) GetEthashDifficultyBombDelaySchedule() ctypes.Uint64BigMapEncodesHex {
@@ -1208,5 +1261,17 @@ func (spec *ParityChainSpec) UpdateAccount(address common.Address, bal *big.Int,
 			},
 		})
 	}
+	return nil
+}
+
+func (spec *ParityChainSpec) GetLyra2NonceTransition() *uint64 {
+	if spec.GetConsensusEngineType() != ctypes.ConsensusEngineT_Lyra2 {
+		return nil
+	}
+	return spec.Params.Lyra2NonceTransition.Uint64P()
+}
+
+func (spec *ParityChainSpec) SetLyra2NonceTransition(n *uint64) error {
+	spec.Params.Lyra2NonceTransition = new(ParityU64).SetUint64(n)
 	return nil
 }

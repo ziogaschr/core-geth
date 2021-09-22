@@ -52,6 +52,19 @@ func setBig(i *big.Int, u *uint64) *big.Int {
 	return i
 }
 
+func bigNewU64Min(i, j *big.Int) *uint64 {
+	if i == nil {
+		return bigNewU64(j)
+	}
+	if j == nil {
+		return bigNewU64(i)
+	}
+	if j.Cmp(i) < 0 {
+		return bigNewU64(j)
+	}
+	return bigNewU64(i)
+}
+
 func (c *ChainConfig) GetAccountStartNonce() *uint64 {
 	return internal.GlobalConfigurator().GetAccountStartNonce()
 }
@@ -117,6 +130,18 @@ func (c *ChainConfig) GetChainID() *big.Int {
 
 func (c *ChainConfig) SetChainID(n *big.Int) error {
 	c.ChainID = n
+	return nil
+}
+
+func (c *ChainConfig) GetSupportedProtocolVersions() []uint {
+	if len(c.SupportedProtocolVersions) == 0 {
+		c.SupportedProtocolVersions = vars.DefaultProtocolVersions
+	}
+	return c.SupportedProtocolVersions
+}
+
+func (c *ChainConfig) SetSupportedProtocolVersions(p []uint) error {
+	c.SupportedProtocolVersions = p
 	return nil
 }
 
@@ -383,11 +408,11 @@ func (c *ChainConfig) SetEIP1706Transition(n *uint64) error {
 }
 
 func (c *ChainConfig) GetEIP2537Transition() *uint64 {
-	return bigNewU64(c.YoloV2Block)
+	return bigNewU64(c.YoloV3Block)
 }
 
 func (c *ChainConfig) SetEIP2537Transition(n *uint64) error {
-	c.YoloV2Block = setBig(c.YoloV2Block, n)
+	c.YoloV3Block = setBig(c.YoloV3Block, n)
 	return nil
 }
 
@@ -401,20 +426,47 @@ func (c *ChainConfig) SetECBP1100Transition(n *uint64) error {
 }
 
 func (c *ChainConfig) GetEIP2315Transition() *uint64 {
-	return bigNewU64(c.YoloV2Block)
+	return bigNewU64(c.YoloV3Block)
 }
 
 func (c *ChainConfig) SetEIP2315Transition(n *uint64) error {
-	c.YoloV2Block = setBig(c.YoloV2Block, n)
+	c.YoloV3Block = setBig(c.YoloV3Block, n)
 	return nil
 }
 
 func (c *ChainConfig) GetEIP2929Transition() *uint64 {
-	return bigNewU64(c.YoloV2Block)
+	return bigNewU64Min(c.YoloV3Block, c.BerlinBlock)
 }
 
 func (c *ChainConfig) SetEIP2929Transition(n *uint64) error {
-	c.YoloV2Block = setBig(c.YoloV2Block, n)
+	c.BerlinBlock = setBig(c.BerlinBlock, n)
+	return nil
+}
+
+func (c *ChainConfig) GetEIP2930Transition() *uint64 {
+	return bigNewU64Min(c.YoloV3Block, c.BerlinBlock)
+}
+
+func (c *ChainConfig) SetEIP2930Transition(n *uint64) error {
+	c.BerlinBlock = setBig(c.BerlinBlock, n)
+	return nil
+}
+
+func (c *ChainConfig) GetEIP2565Transition() *uint64 {
+	return bigNewU64Min(c.YoloV3Block, c.BerlinBlock)
+}
+
+func (c *ChainConfig) SetEIP2565Transition(n *uint64) error {
+	c.BerlinBlock = setBig(c.BerlinBlock, n)
+	return nil
+}
+
+func (c *ChainConfig) GetEIP2718Transition() *uint64 {
+	return bigNewU64Min(c.YoloV3Block, c.BerlinBlock)
+}
+
+func (c *ChainConfig) SetEIP2718Transition(n *uint64) error {
+	c.BerlinBlock = setBig(c.BerlinBlock, n)
 	return nil
 }
 
@@ -454,6 +506,9 @@ func (c *ChainConfig) GetConsensusEngineType() ctypes.ConsensusEngineT {
 	if c.Clique != nil {
 		return ctypes.ConsensusEngineT_Clique
 	}
+	if c.Lyra2 != nil {
+		return ctypes.ConsensusEngineT_Lyra2
+	}
 	return ctypes.ConsensusEngineT_Ethash
 }
 
@@ -467,9 +522,23 @@ func (c *ChainConfig) MustSetConsensusEngineType(t ctypes.ConsensusEngineT) erro
 		c.Clique = new(ctypes.CliqueConfig)
 		c.Ethash = nil
 		return nil
+	case ctypes.ConsensusEngineT_Lyra2:
+		c.Lyra2 = new(ctypes.Lyra2Config)
+		c.Ethash = nil
+		c.Clique = nil
+		return nil
 	default:
 		return ctypes.ErrUnsupportedConfigFatal
 	}
+}
+
+func (c *ChainConfig) GetCatalystTransition() *uint64 {
+	return bigNewU64(c.CatalystBlock)
+}
+
+func (c *ChainConfig) SetCatalystTransition(n *uint64) error {
+	c.CatalystBlock = setBig(c.CatalystBlock, n)
+	return nil
 }
 
 func (c *ChainConfig) GetEthashMinimumDifficulty() *big.Int {
@@ -752,5 +821,22 @@ func (c *ChainConfig) SetCliqueEpoch(n uint64) error {
 		return ctypes.ErrUnsupportedConfigFatal
 	}
 	c.Clique.Epoch = n
+	return nil
+}
+
+func (c *ChainConfig) GetLyra2NonceTransition() *uint64 {
+	if c.GetConsensusEngineType() != ctypes.ConsensusEngineT_Lyra2 {
+		return nil
+	}
+	return bigNewU64(c.Lyra2NonceTransitionBlock)
+}
+
+func (c *ChainConfig) SetLyra2NonceTransition(n *uint64) error {
+	if c.Lyra2 == nil {
+		return ctypes.ErrUnsupportedConfigFatal
+	}
+
+	c.Lyra2NonceTransitionBlock = setBig(c.Lyra2NonceTransitionBlock, n)
+
 	return nil
 }

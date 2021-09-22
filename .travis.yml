@@ -4,44 +4,11 @@ sudo: false
 jobs:
   include:
 
-  # Run linter check. Only test code linters on latest version of Go.
-  - stage: lint
-    os: linux
-    dist: xenial
-    go: 1.16.x
-    env:
-      - lint
-    git:
-      submodules: false
-    script:
-      - make lint
-
-  # Run core-geth -specific tests, proving regression-safety and config interoperability.
-  - stage: build
-    name: "Go1.16.x: make test-coregeth"
-    os: linux
-    dist: xenial
-    go: 1.16.x
-    script:
-    - make test-coregeth
-
-  # Run build and tests against latest-1 Go version.
-  - stage: build
-    name: "Go1.15.x: make test"
-    os: linux
-    dist: xenial
-    go: 1.15.x
-    env:
-      - GO111MODULE=on
-    script:
-      - make all
-      - travis_wait 60 make test
-
   # Run build and tests on ARM64 on Pull Requests.
   # These tests are divided in half because their aggregate typical runtime
   # exceeds Travis' time limit (~60m) and were consistently causing timeouts.
   - stage: build
-    name: "ARM64/Go1.15.x: make test [A-G]"
+    name: "ARM64/Go1.16.x: make test [A-G]"
     if: type = pull_request
     os: linux
     arch: arm64
@@ -50,18 +17,18 @@ jobs:
     env:
       - GO111MODULE=on
     script:
-      - go run build/ci.go test -coverage $(printf './%s/... ' $(go list ./... | sed 's|github.com/ethereum/go-ethereum||g' | cut -d'/' -f2 | uniq | grep -E '^[a-g]'))
+      - go run build/ci.go test -timeout 30m -coverage $(printf './%s/... ' $(go list ./... | sed 's|github.com/ethereum/go-ethereum||g' | cut -d'/' -f2 | uniq | grep -E '^[a-g]'))
   - stage: build
-    name: "ARM64/Go1.15.x: make test [H-Z]"
+    name: "ARM64/Go1.16.x: make test [H-Z]"
     if: type = pull_request
     os: linux
     arch: arm64
     dist: xenial
-    go: 1.15.x
+    go: 1.16.x
     env:
       - GO111MODULE=on
     script:
-      - go run build/ci.go test -coverage $(printf './%s/... ' $(go list ./... | sed 's|github.com/ethereum/go-ethereum||g' | cut -d'/' -f2 | uniq | grep -E '^[h-z]'))
+      - go run build/ci.go test -timeout 30m -coverage $(printf './%s/... ' $(go list ./... | sed 's|github.com/ethereum/go-ethereum||g' | cut -d'/' -f2 | uniq | grep -E '^[h-z]'))
 
   # Run build and tests with environment-aware possible artifact deployment.
   - stage: build
