@@ -19,14 +19,14 @@ jobs:
     strategy:
       matrix:
         include:
-        - os: macos-latest
-          BUILD_OS_NAME: macos
+        # - os: macos-latest
+        #   BUILD_OS_NAME: macos
 
-        - os: ubuntu-latest
-          BUILD_OS_NAME: linux
+        # - os: ubuntu-latest
+        #   BUILD_OS_NAME: linux
 
         - os: windows-latest
-          BUILD_OS_NAME: windows
+          BUILD_OS_NAME: win64
 
     steps:
       - name: Set up Go 1.16
