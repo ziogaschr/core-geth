@@ -4,7 +4,7 @@
 GETH_ARCHIVE_NAME="core-geth-${BUILD_OS_NAME}"
 ALLTOOLS_ARCHIVE_NAME="core-geth-alltools-${BUILD_OS_NAME}"
 
-if [[ "${{BUILD_OS_NAME}}" == windows ]]; then
+if [[ "${BUILD_OS_NAME}" == "windows" ]]; then
   7z a "$GETH_ARCHIVE_NAME.zip" build/bin/geth
 
   sha256sum $GETH_ARCHIVE_NAME.zip
