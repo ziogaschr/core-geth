@@ -6,12 +6,13 @@ on:
     # Sequence of patterns matched against refs/tags
     tags:
     - 'v*' # Push events to matching v*, i.e. v1.0, v20.15.10
-  pull_request:
   workflow_dispatch:
 
-jobs:
+defaults:
+  run:
+    shell: bash
 
-  # Run build deploy for linux.
+jobs:
   build-linux:
     name: Build artifacts
     runs-on: ${{ matrix.os }}
@@ -28,6 +29,9 @@ jobs:
           BUILD_OS_NAME: windows
 
     steps:
+      - name: Prepare environment
+        run: apt-get update && apt-get install -y zip shasum
+
       - name: Set up Go 1.16
         id: go
         uses: actions/setup-go@v2
@@ -46,7 +50,6 @@ jobs:
         run: ./build/deploy.sh
         env:
           BUILD_OS_NAME: ${{ matrix.BUILD_OS_NAME }}
-        shell: bash
 
       - name: Upload release sssets
         uses: softprops/action-gh-release@v1
