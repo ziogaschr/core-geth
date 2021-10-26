@@ -30,13 +30,8 @@ jobs:
           make all
           TRAVIS_OS_NAME=linux ./build/deploy.sh
 
-      - name: Upload Release Asset
-        id: upload-release-asset
-        uses: actions/upload-release-asset@v1
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      - name: Upload Release Assets
+        uses: softprops/action-gh-release@v1
+        if: startsWith(github.ref, 'refs/tags/')
         with:
-          upload_url: /repos/ziogaschr/core-geth/releases/${GITHUB_REF/refs\/tags\//}
-          asset_path: ./
-          asset_name: core-geth-*.zip
-          asset_content_type: application/zip
+          files: core-geth-*.zip
