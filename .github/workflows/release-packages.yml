@@ -29,9 +29,6 @@ jobs:
           BUILD_OS_NAME: windows
 
     steps:
-      - name: Prepare environment
-        run: apt-get update && apt-get install -y zip shasum
-
       - name: Set up Go 1.16
         id: go
         uses: actions/setup-go@v2
