@@ -34,15 +34,20 @@ jobs:
         with:
           go-version: ^1.16
 
-      - uses: actions/checkout@v2
+      - name: Checkout etclabscore/core-geth
+        uses: actions/checkout@v2
         with:
           submodules: recursive
 
-      - run: make all
+      - name: Build all packages
+        run: make all
 
-      - run: BUILD_OS_NAME=${{ matrix.BUILD_OS_NAME }} ./build/deploy.sh
+      - name: Prepare archive's for release
+        run: ./build/deploy.sh
+        env:
+          BUILD_OS_NAME: ${{ matrix.BUILD_OS_NAME }}
 
-      - name: Upload Release Assets
+      - name: Upload release sssets
         uses: softprops/action-gh-release@v1
         with:
           files: core-geth*.zip*
