@@ -46,6 +46,7 @@ jobs:
         run: ./build/deploy.sh
         env:
           BUILD_OS_NAME: ${{ matrix.BUILD_OS_NAME }}
+        shell: bash
 
       - name: Upload release sssets
         uses: softprops/action-gh-release@v1
