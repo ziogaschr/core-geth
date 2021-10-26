@@ -14,7 +14,19 @@ jobs:
   # Run build deploy for linux.
   build-linux:
     name: Build linux artifacts
-    runs-on: ubuntu-latest
+    runs-on: ${{ matrix.os }}
+    strategy:
+      matrix:
+        include:
+        - os: macos-latest
+          BUILD_OS_NAME: macos
+
+        - os: ubuntu-latest
+          BUILD_OS_NAME: ubuntu
+
+        - os: windows-latest
+          BUILD_OS_NAME: ubuntu
+
     steps:
       - name: Set up Go 1.16
         id: go
@@ -28,9 +40,9 @@ jobs:
 
       - run: |
           make all
-          TRAVIS_OS_NAME=linux ./build/deploy.sh
+          BUILD_OS_NAME=${{ matrix.BUILD_OS_NAME }} ./build/deploy.sh
 
       - name: Upload Release Assets
         uses: softprops/action-gh-release@v1
         with:
-          files: core-geth-*.zip
+          files: core-geth*.zip*
