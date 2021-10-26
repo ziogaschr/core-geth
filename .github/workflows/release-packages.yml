@@ -13,7 +13,7 @@ jobs:
 
   # Run build deploy for linux.
   build-linux:
-    name: Build linux artifacts
+    name: Build artifacts
     runs-on: ${{ matrix.os }}
     strategy:
       matrix:
@@ -22,10 +22,10 @@ jobs:
           BUILD_OS_NAME: macos
 
         - os: ubuntu-latest
-          BUILD_OS_NAME: ubuntu
+          BUILD_OS_NAME: linux
 
         - os: windows-latest
-          BUILD_OS_NAME: ubuntu
+          BUILD_OS_NAME: windows
 
     steps:
       - name: Set up Go 1.16
@@ -38,9 +38,9 @@ jobs:
         with:
           submodules: recursive
 
-      - run: |
-          make all
-          BUILD_OS_NAME=${{ matrix.BUILD_OS_NAME }} ./build/deploy.sh
+      - run: make all
+
+      - run: BUILD_OS_NAME=${{ matrix.BUILD_OS_NAME }} ./build/deploy.sh
 
       - name: Upload Release Assets
         uses: softprops/action-gh-release@v1
