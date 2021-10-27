@@ -59,6 +59,7 @@ jobs:
               sudo tar -C /usr/local -xzf go1.16.9.linux-armv6l.tar.gz
               rm go1.16.9.linux-armv6l.tar.gz
               export PATH=$PATH:/usr/local/go/bin
+              sudo -E apt-get -yq --no-install-suggests --no-install-recommends --force-yes install libc6-armel-cross libc6-dev-armel-cross binutils-arm-linux-gnueabi libncurses5-dev build-essential bison flex libssl-dev bc
               GOARM=5 go run build/ci.go install -dlgo -arch arm -cc arm-linux-gnueabi-gcc
 
       - name: Build all packages
