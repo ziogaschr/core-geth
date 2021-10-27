@@ -49,10 +49,10 @@ jobs:
       - uses: pguyot/arm-runner-action@v1
         id: build_image
         if: ${{ matrix.BUILD_OS_NAME }} == 'arm'
-        copy_artifact_path: ./build/bin/
-        copy_artifact_dest: ./build/bin/
         shell: bash
         with:
+          copy_artifact_path: ./build/bin/
+          copy_artifact_dest: ./build/bin/
           commands: |
               sudo apt-get update -y
               sudo add-apt-repository ppa:longsleep/golang-backports
