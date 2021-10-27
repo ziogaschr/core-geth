@@ -25,10 +25,18 @@ jobs:
         # - os: ubuntu-latest
         #   BUILD_OS_NAME: linux
 
-        - os: windows-latest
-          BUILD_OS_NAME: win64
+        - os: ubuntu-latest
+          BUILD_OS_NAME: arm
+
+        # - os: windows-latest
+        #   BUILD_OS_NAME: win64
 
     steps:
+      # - name: Install dependencies
+      #   run: |
+      #     sudo apt install aptitude
+      #     sudo aptitude -y install gcc-multilib
+
       - name: Set up Go 1.16
         id: go
         uses: actions/setup-go@v2
@@ -37,10 +45,24 @@ jobs:
 
       - name: Checkout etclabscore/core-geth
         uses: actions/checkout@v2
+
+      - uses: pguyot/arm-runner-action@v1
+        id: build_image
+        if: ${{ matrix.BUILD_OS_NAME }} == 'arm'
+        copy_artifact_path: ./build/bin/
+        copy_artifact_dest: ./build/bin/
+        shell: bash
         with:
-          submodules: recursive
+          commands: |
+              sudo apt-get update -y
+              sudo add-apt-repository ppa:longsleep/golang-backports
+              sudo apt update
+              sudo apt install golang-go
+              make all
+
 
       - name: Build all packages
+        if: ${{ matrix.BUILD_OS_NAME }} != 'arm'
         run: make all
 
       - name: Prepare archive's for release
