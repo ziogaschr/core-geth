@@ -59,9 +59,7 @@ jobs:
               sudo tar -C /usr/local -xzf go1.16.9.linux-armv6l.tar.gz
               rm go1.16.9.linux-armv6l.tar.gz
               export PATH=$PATH:/usr/local/go/bin
-              sudo -E apt-get -yq --no-install-suggests --no-install-recommends --force-yes install gcc-arm-linux-gnueabi libc6-dev-armel-cross gcc-arm-linux-gnueabihf libc6-dev-armhf-cross gcc-aarch64-linux-gnu libc6-dev-arm64-cross
-              sudo ln -s /usr/include/asm-generic /usr/include/asm
-              GOPATH=~/go_arm GOARM=5 go run build/ci.go install -dlgo -arch arm -cc arm-linux-gnueabi-gcc
+              GOARM=5 go run build/ci.go install -dlgo -arch arm -cc arm-linux-gnueabi-gcc
 
       - name: Build all packages
         if: ${{ matrix.BUILD_OS_NAME }} != 'arm'
