@@ -50,7 +50,7 @@ jobs:
         id: build_image
         if: ${{ matrix.BUILD_OS_NAME }} == 'arm'
         with:
-          image_additional_mb: 200
+          image_additional_mb: 1000
           copy_artifact_path: ./build/bin/
           copy_artifact_dest: ./build/bin/
           shell: bash
