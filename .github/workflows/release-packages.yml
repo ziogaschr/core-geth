@@ -54,10 +54,10 @@ jobs:
           copy_artifact_dest: ./build/bin/
           shell: bash
           commands: |
-              sudo apt-get update -y
-              sudo add-apt-repository ppa:longsleep/golang-backports
-              sudo apt update
-              sudo apt install golang-go
+              wget https://golang.org/dl/go1.16.9.linux-armv6l.tar.gz
+              sudo tar -C /usr/local -xzf go1.16.9.linux-armv6l.tar.gz
+              rm go1.16.9.linux-armv6l.tar.gz
+              export PATH=$PATH:/usr/local/go/bin
               make all
 
 
