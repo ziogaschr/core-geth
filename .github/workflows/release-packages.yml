@@ -19,16 +19,24 @@ jobs:
     strategy:
       matrix:
         include:
-        - os: macos-latest
-          BUILD_OS_NAME: macos
+        # - os: macos-latest
+        #   BUILD_OS_NAME: macos
+
+        # - os: ubuntu-latest
+        #   BUILD_OS_NAME: linux
 
         - os: ubuntu-latest
-          BUILD_OS_NAME: linux
+          BUILD_OS_NAME: arm
 
-        - os: windows-latest
-          BUILD_OS_NAME: win64
+        # - os: windows-latest
+        #   BUILD_OS_NAME: win64
 
     steps:
+      # - name: Install dependencies
+      #   run: |
+      #     sudo apt install aptitude
+      #     sudo aptitude -y install gcc-multilib
+
       - name: Set up Go 1.16
         id: go
         uses: actions/setup-go@v2
@@ -38,7 +46,19 @@ jobs:
       - name: Checkout etclabscore/core-geth
         uses: actions/checkout@v2
 
+      - uses: pguyot/arm-runner-action@v1
+        id: build_image
+        if: ${{ matrix.BUILD_OS_NAME }} == 'arm'
+        with:
+          image_additional_mb: 1000
+          copy_artifact_path: ./build/bin/
+          copy_artifact_dest: ./build/bin/
+          shell: bash
+          commands: |
+            go run build/ci.go install -dlgo
+
       - name: Build all packages
+        if: ${{ matrix.BUILD_OS_NAME }} != 'arm'
         run: make all
 
       - name: Prepare archive's for release
