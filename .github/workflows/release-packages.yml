@@ -48,7 +48,7 @@ jobs:
 
       - uses: pguyot/arm-runner-action@v1
         id: build_image
-        if: ${{ matrix.BUILD_OS_NAME }} == 'arm'
+        if: ${{ matrix.BUILD_OS_NAME == 'arm' }}
         with:
           image_additional_mb: 2000
           copy_artifact_path: ./build/bin/
@@ -60,10 +60,10 @@ jobs:
               rm go1.16.9.linux-armv6l.tar.gz
               export PATH=$PATH:/usr/local/go/bin
 
-              sudo GOARM=5 go run build/ci.go install -dlgo -arch arm
+              GOARM=5 go run build/ci.go install -dlgo -arch arm
 
       - name: Build all packages
-        if: ${{ matrix.BUILD_OS_NAME }} != 'arm'
+        if: ${{ matrix.BUILD_OS_NAME != 'arm' }}
         run: make all
 
       - name: Prepare archive's for release
