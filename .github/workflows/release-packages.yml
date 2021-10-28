@@ -60,7 +60,7 @@ jobs:
               rm go1.16.9.linux-armv6l.tar.gz
               export PATH=$PATH:/usr/local/go/bin
 
-              GOARM=5 go run build/ci.go install -dlgo -arch arm
+              GOARM=5 sudo go run build/ci.go install -dlgo -arch arm
 
       - name: Build all packages
         if: ${{ matrix.BUILD_OS_NAME }} != 'arm'
