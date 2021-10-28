@@ -53,7 +53,7 @@ jobs:
           image_additional_mb: 1000
           copy_artifact_path: ./build/bin/
           copy_artifact_dest: ./build/bin/
-          shell: bash
+          # shell: bash
           commands: |
             go run build/ci.go install -dlgo
 
