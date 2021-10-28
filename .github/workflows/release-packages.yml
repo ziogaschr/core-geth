@@ -46,7 +46,12 @@ jobs:
       - name: Checkout etclabscore/core-geth
         uses: actions/checkout@v2
 
-      - uses: pguyot/arm-runner-action@v1
+      - name: Build all packages (non ARM)
+        if: ${{ matrix.BUILD_OS_NAME != 'arm' }}
+        run: make all
+
+      - name: Build all packages (ARM)
+        uses: pguyot/arm-runner-action@v1
         id: build_image
         if: ${{ matrix.BUILD_OS_NAME == 'arm' }}
         with:
@@ -61,10 +66,6 @@ jobs:
               export PATH=$PATH:/usr/local/go/bin
 
               GOARM=5 go run build/ci.go install -dlgo -arch arm
-
-      - name: Build all packages
-        if: ${{ matrix.BUILD_OS_NAME != 'arm' }}
-        run: make all
 
       - name: Prepare archive's for release
         run: ./build/deploy.sh
