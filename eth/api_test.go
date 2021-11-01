@@ -37,7 +37,13 @@ import (
 var dumper = spew.ConfigState{Indent: "    "}
 
 func accountRangeTest(t *testing.T, trie *state.Trie, statedb *state.StateDB, start common.Hash, requestedNum int, expectedNum int) state.IteratorDump {
-	result := statedb.IteratorDump(true, true, false, start.Bytes(), requestedNum)
+	result := statedb.IteratorDump(&state.DumpConfig{
+		SkipCode:          true,
+		SkipStorage:       true,
+		OnlyWithAddresses: false,
+		Start:             start.Bytes(),
+		Max:               uint64(requestedNum),
+	})
 
 	if len(result.Accounts) != expectedNum {
 		t.Fatalf("expected %d results, got %d", expectedNum, len(result.Accounts))
@@ -60,8 +66,10 @@ func (h resultHash) Swap(i, j int)      { h[i], h[j] = h[j], h[i] }
 func (h resultHash) Less(i, j int) bool { return bytes.Compare(h[i].Bytes(), h[j].Bytes()) < 0 }
 
 func TestAccountRange(t *testing.T) {
+	t.Parallel()
+
 	var (
-		statedb  = state.NewDatabase(rawdb.NewMemoryDatabase())
+		statedb  = state.NewDatabaseWithConfig(rawdb.NewMemoryDatabase(), nil)
 		state, _ = state.New(common.Hash{}, statedb, nil)
 		addrs    = [AccountRangeMaxResults * 2]common.Address{}
 		m        = map[common.Address]bool{}
@@ -129,13 +137,20 @@ func TestAccountRange(t *testing.T) {
 }
 
 func TestEmptyAccountRange(t *testing.T) {
+	t.Parallel()
+
 	var (
-		statedb  = state.NewDatabase(rawdb.NewMemoryDatabase())
-		state, _ = state.New(common.Hash{}, statedb, nil)
+		statedb = state.NewDatabase(rawdb.NewMemoryDatabase())
+		st, _   = state.New(common.Hash{}, statedb, nil)
 	)
-	state.Commit(true)
-	state.IntermediateRoot(true)
-	results := state.IteratorDump(true, true, true, (common.Hash{}).Bytes(), AccountRangeMaxResults)
+	st.Commit(true)
+	st.IntermediateRoot(true)
+	results := st.IteratorDump(&state.DumpConfig{
+		SkipCode:          true,
+		SkipStorage:       true,
+		OnlyWithAddresses: true,
+		Max:               uint64(AccountRangeMaxResults),
+	})
 	if bytes.Equal(results.Next, (common.Hash{}).Bytes()) {
 		t.Fatalf("Empty results should not return a second page")
 	}
@@ -145,6 +160,8 @@ func TestEmptyAccountRange(t *testing.T) {
 }
 
 func TestStorageRangeAt(t *testing.T) {
+	t.Parallel()
+
 	// Create a state where account 0x010000... has a few storage entries.
 	var (
 		state, _ = state.New(common.Hash{}, state.NewDatabase(rawdb.NewMemoryDatabase()), nil)
@@ -254,11 +271,13 @@ func BenchmarkCopyConfiguratorInterface(b *testing.B) {
 	}
 }
 
+// TODO(iquidus): this test needs an existingEIP2929 replacement yolov3 has been removed.
 // BenchmarkTestValueEquivalenceAlot gets about 1.5 ns/op on my machine.
+/*
 func BenchmarkTestValueEquivalenceAlot(b *testing.B) {
 	for i := 0; i < b.N; i++ {
 		overrideEIP2929 := params.ClassicChainConfig.GetEIP2929Transition()
-		existingEIP2929 := params.YoloV2ChainConfig.GetEIP2929Transition()
+		existingEIP2929 := params.YoloV3ChainConfig.GetEIP2929Transition()
 		if (overrideEIP2929 == nil && existingEIP2929 != nil) ||
 			(overrideEIP2929 != nil && existingEIP2929 == nil) ||
 			(overrideEIP2929 != nil && existingEIP2929 != nil && *overrideEIP2929 != *existingEIP2929) {
@@ -266,3 +285,4 @@ func BenchmarkTestValueEquivalenceAlot(b *testing.B) {
 		}
 	}
 }
+*/

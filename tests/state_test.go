@@ -21,6 +21,7 @@ import (
 	"bytes"
 	"fmt"
 	"reflect"
+	"strings"
 	"testing"
 
 	"github.com/ethereum/go-ethereum/core/vm"
@@ -50,18 +51,26 @@ func TestState(t *testing.T) {
 		st.skipLoad(`^stEWASM`)
 	}
 	if *testEVM != "" {
-
-		// These fail because these forks were not supported at this version of the EVMOne .so.
-		// The EVMOne version (0.2.0) is the latest EVMC v6 compatible version.
-		st.skipFork("Constantinople") // Only support
-		st.skipFork("Istanbul")
-		st.skipFork("ETC_Phoenix")
+		// These interpreters fail Constantinople (but pass ConstantinopleFix).
+		if strings.Contains(*testEVM, "aleth") || strings.Contains(*testEVM, "evmone") {
+			st.skipFork("^Constantinople$")
+		}
 
 		// These tests are noted as SLOW above, and they fail against the EVMOne.so
 		// So (get it?), skip 'em.
 		st.skipLoad(`^stQuadraticComplexityTest/`)
 		st.skipLoad(`^stStaticCall/static_Call50000`)
 	}
+	if *testEVM != "" || *testEWASM != "" {
+		// Berlin tests are not expected to pass for external EVMs, yet.
+		//
+		st.skipFork("^Berlin$")
+		st.skipFork("Magneto")
+		st.skipFork("London")
+	}
+
+	// Un-skip this when https://github.com/ethereum/tests/issues/908 is closed
+	st.skipLoad(`^stQuadraticComplexityTest/QuadraticComplexitySolidity_CallDataCopy`)
 
 	// Broken tests:
 	// Expected failures:
@@ -81,7 +90,6 @@ func TestState(t *testing.T) {
 			for _, subtest := range test.Subtests(st.skipforkpat) {
 				subtest := subtest
 				key := fmt.Sprintf("%s/%d", subtest.Fork, subtest.Index)
-				name := name + "/" + key
 
 				t.Run(key+"/trie", func(t *testing.T) {
 					withTrace(t, test.gasLimit(subtest), func(vmconfig vm.Config) error {
@@ -89,19 +97,29 @@ func TestState(t *testing.T) {
 						if err != nil && *testEWASM != "" {
 							err = fmt.Errorf("%v ewasm=%s", err, *testEWASM)
 						}
-						return st.checkFailure(t, name+"/trie", err)
+						if err != nil && len(test.json.Post[subtest.Fork][subtest.Index].ExpectException) > 0 {
+							// Ignore expected errors (TODO MariusVanDerWijden check error string)
+							return nil
+						}
+						return st.checkFailure(t, err)
 					})
 				})
 				t.Run(key+"/snap", func(t *testing.T) {
 					withTrace(t, test.gasLimit(subtest), func(vmconfig vm.Config) error {
 						snaps, statedb, err := test.Run(subtest, vmconfig, true)
-						if _, err := snaps.Journal(statedb.IntermediateRoot(false)); err != nil {
-							return err
+						if snaps != nil && statedb != nil {
+							if _, err := snaps.Journal(statedb.IntermediateRoot(false)); err != nil {
+								return err
+							}
+						}
+						if err != nil && len(test.json.Post[subtest.Fork][subtest.Index].ExpectException) > 0 {
+							// Ignore expected errors (TODO MariusVanDerWijden check error string)
+							return nil
 						}
 						if err != nil && *testEWASM != "" {
 							err = fmt.Errorf("%v ewasm=%s", err, *testEWASM)
 						}
-						return st.checkFailure(t, name+"/snap", err)
+						return st.checkFailure(t, err)
 					})
 				})
 			}
@@ -128,7 +146,7 @@ func withTrace(t *testing.T, gasLimit uint64, test func(vm.Config) error) {
 	}
 	buf := new(bytes.Buffer)
 	w := bufio.NewWriter(buf)
-	tracer := vm.NewJSONLogger(&vm.LogConfig{DisableMemory: true}, w)
+	tracer := vm.NewJSONLogger(&vm.LogConfig{}, w)
 	config.Debug, config.Tracer = true, tracer
 	err2 := test(config)
 	if !reflect.DeepEqual(err, err2) {
@@ -140,6 +158,6 @@ func withTrace(t *testing.T, gasLimit uint64, test func(vm.Config) error) {
 	} else {
 		t.Log("EVM operation log:\n" + buf.String())
 	}
-	//t.Logf("EVM output: 0x%x", tracer.Output())
-	//t.Logf("EVM error: %v", tracer.Error())
+	// t.Logf("EVM output: 0x%x", tracer.Output())
+	// t.Logf("EVM error: %v", tracer.Error())
 }

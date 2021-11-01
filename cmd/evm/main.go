@@ -113,7 +113,7 @@ var (
 		Name:  "receiver",
 		Usage: "The transaction receiver (execution context)",
 	}
-	DisableMemoryFlag = cli.BoolFlag{
+	DisableMemoryFlag = cli.BoolTFlag{
 		Name:  "nomemory",
 		Usage: "disable memory output",
 	}
@@ -125,9 +125,9 @@ var (
 		Name:  "nostorage",
 		Usage: "disable storage output",
 	}
-	DisableReturnDataFlag = cli.BoolFlag{
+	DisableReturnDataFlag = cli.BoolTFlag{
 		Name:  "noreturndata",
-		Usage: "disable return data output",
+		Usage: "enable return data output",
 	}
 	EVMInterpreterFlag = cli.StringFlag{
 		Name:  "vm.evm",
@@ -149,6 +149,7 @@ var stateTransitionCommand = cli.Command{
 		t8ntool.OutputBasedir,
 		t8ntool.OutputAllocFlag,
 		t8ntool.OutputResultFlag,
+		t8ntool.OutputBodyFlag,
 		t8ntool.InputAllocFlag,
 		t8ntool.InputEnvFlag,
 		t8ntool.InputTxsFlag,

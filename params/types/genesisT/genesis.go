@@ -52,6 +52,7 @@ type Genesis struct {
 	Number     uint64      `json:"number"`
 	GasUsed    uint64      `json:"gasUsed"`
 	ParentHash common.Hash `json:"parentHash"`
+	BaseFee    *big.Int    `json:"baseFeePerGas"`
 }
 
 func (g *Genesis) ForEachAccount(fn func(address common.Address, bal *big.Int, nonce uint64, code []byte, storage map[common.Hash]common.Hash) error) error {
@@ -115,6 +116,7 @@ type genesisSpecMarshaling struct {
 	GasUsed    math.HexOrDecimal64
 	Number     math.HexOrDecimal64
 	Difficulty *math.HexOrDecimal256
+	BaseFee    *math.HexOrDecimal256
 	Alloc      map[common.UnprefixedAddress]GenesisAccount
 }
 
@@ -302,6 +304,14 @@ func (g *Genesis) GetChainID() *big.Int {
 
 func (g *Genesis) SetChainID(i *big.Int) error {
 	return g.Config.SetChainID(i)
+}
+
+func (g *Genesis) GetSupportedProtocolVersions() []uint {
+	return g.Config.GetSupportedProtocolVersions()
+}
+
+func (g *Genesis) SetSupportedProtocolVersions(p []uint) error {
+	return g.Config.SetSupportedProtocolVersions(p)
 }
 
 func (g *Genesis) GetMaxCodeSize() *uint64 {
@@ -560,6 +570,62 @@ func (g *Genesis) SetEIP2929Transition(n *uint64) error {
 	return g.Config.SetEIP2929Transition(n)
 }
 
+func (g *Genesis) GetEIP2930Transition() *uint64 {
+	return g.Config.GetEIP2930Transition()
+}
+
+func (g *Genesis) SetEIP2930Transition(n *uint64) error {
+	return g.Config.SetEIP2930Transition(n)
+}
+
+func (g *Genesis) GetEIP1559Transition() *uint64 {
+	return g.Config.GetEIP1559Transition()
+}
+
+func (g *Genesis) SetEIP1559Transition(n *uint64) error {
+	return g.Config.SetEIP1559Transition(n)
+}
+
+func (g *Genesis) GetEIP3541Transition() *uint64 {
+	return g.Config.GetEIP3541Transition()
+}
+
+func (g *Genesis) SetEIP3541Transition(n *uint64) error {
+	return g.Config.SetEIP3541Transition(n)
+}
+
+func (g *Genesis) GetEIP3529Transition() *uint64 {
+	return g.Config.GetEIP3529Transition()
+}
+
+func (g *Genesis) SetEIP3529Transition(n *uint64) error {
+	return g.Config.SetEIP3529Transition(n)
+}
+
+func (g *Genesis) GetEIP3198Transition() *uint64 {
+	return g.Config.GetEIP3198Transition()
+}
+
+func (g *Genesis) SetEIP3198Transition(n *uint64) error {
+	return g.Config.SetEIP3198Transition(n)
+}
+
+func (g *Genesis) GetEIP2565Transition() *uint64 {
+	return g.Config.GetEIP2565Transition()
+}
+
+func (g *Genesis) SetEIP2565Transition(n *uint64) error {
+	return g.Config.SetEIP2565Transition(n)
+}
+
+func (g *Genesis) GetEIP2718Transition() *uint64 {
+	return g.Config.GetEIP2718Transition()
+}
+
+func (g *Genesis) SetEIP2718Transition(n *uint64) error {
+	return g.Config.SetEIP2718Transition(n)
+}
+
 func (g *Genesis) GetECBP1100Transition() *uint64 {
 	return g.Config.GetECBP1100Transition()
 }
@@ -590,6 +656,14 @@ func (g *Genesis) GetConsensusEngineType() ctypes.ConsensusEngineT {
 
 func (g *Genesis) MustSetConsensusEngineType(t ctypes.ConsensusEngineT) error {
 	return g.Config.MustSetConsensusEngineType(t)
+}
+
+func (g *Genesis) GetCatalystTransition() *uint64 {
+	return g.Config.GetCatalystTransition()
+}
+
+func (g *Genesis) SetCatalystTransition(n *uint64) error {
+	return g.Config.SetCatalystTransition(n)
 }
 
 func (g *Genesis) GetEthashMinimumDifficulty() *big.Int {
@@ -662,6 +736,14 @@ func (g *Genesis) GetEthashEIP2384Transition() *uint64 {
 
 func (g *Genesis) SetEthashEIP2384Transition(n *uint64) error {
 	return g.Config.SetEthashEIP2384Transition(n)
+}
+
+func (g *Genesis) GetEthashEIP3554Transition() *uint64 {
+	return g.Config.GetEthashEIP3554Transition()
+}
+
+func (g *Genesis) SetEthashEIP3554Transition(n *uint64) error {
+	return g.Config.SetEthashEIP3554Transition(n)
 }
 
 func (g *Genesis) GetEthashECIP1010PauseTransition() *uint64 {
@@ -750,4 +832,12 @@ func (g *Genesis) GetCliqueEpoch() uint64 {
 
 func (g *Genesis) SetCliqueEpoch(n uint64) error {
 	return g.Config.SetCliqueEpoch(n)
+}
+
+func (g *Genesis) GetLyra2NonceTransition() *uint64 {
+	return g.Config.GetLyra2NonceTransition()
+}
+
+func (g *Genesis) SetLyra2NonceTransition(n *uint64) error {
+	return g.Config.SetLyra2NonceTransition(n)
 }

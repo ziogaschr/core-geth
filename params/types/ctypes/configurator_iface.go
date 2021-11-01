@@ -62,6 +62,8 @@ type ProtocolSpecifier interface {
 	SetNetworkID(n *uint64) error
 	GetChainID() *big.Int
 	SetChainID(i *big.Int) error
+	GetSupportedProtocolVersions() []uint
+	SetSupportedProtocolVersions(p []uint) error
 	GetMaxCodeSize() *uint64
 	SetMaxCodeSize(n *uint64) error
 
@@ -130,12 +132,39 @@ type ProtocolSpecifier interface {
 	SetEIP1706Transition(n *uint64) error
 	GetEIP2537Transition() *uint64
 	SetEIP2537Transition(n *uint64) error
+
 	GetECBP1100Transition() *uint64
 	SetECBP1100Transition(n *uint64) error
 	GetEIP2315Transition() *uint64
 	SetEIP2315Transition(n *uint64) error
+
+	// ModExp gas cost
+	GetEIP2565Transition() *uint64
+	SetEIP2565Transition(n *uint64) error
+
+	// Gas cost increases for state access opcodes
 	GetEIP2929Transition() *uint64
 	SetEIP2929Transition(n *uint64) error
+
+	// Optional access lists
+	GetEIP2930Transition() *uint64
+	SetEIP2930Transition(n *uint64) error
+
+	// Typed transaction envelope
+	GetEIP2718Transition() *uint64
+	SetEIP2718Transition(n *uint64) error
+
+	GetEIP1559Transition() *uint64
+	SetEIP1559Transition(n *uint64) error
+
+	GetEIP3541Transition() *uint64
+	SetEIP3541Transition(n *uint64) error
+
+	GetEIP3529Transition() *uint64
+	SetEIP3529Transition(n *uint64) error
+
+	GetEIP3198Transition() *uint64
+	SetEIP3198Transition(n *uint64) error
 }
 
 type Forker interface {
@@ -155,6 +184,11 @@ type ConsensusEnginator interface {
 	MustSetConsensusEngineType(t ConsensusEngineT) error
 	EthashConfigurator
 	CliqueConfigurator
+	Lyra2Configurator
+
+	// Catalyst: ETH -> ETH2 PoS transition helper
+	GetCatalystTransition() *uint64
+	SetCatalystTransition(n *uint64) error
 }
 
 type EthashConfigurator interface {
@@ -179,6 +213,8 @@ type EthashConfigurator interface {
 	SetEthashEIP1234Transition(n *uint64) error
 	GetEthashEIP2384Transition() *uint64
 	SetEthashEIP2384Transition(n *uint64) error
+	GetEthashEIP3554Transition() *uint64
+	SetEthashEIP3554Transition(n *uint64) error
 	GetEthashECIP1010PauseTransition() *uint64
 	SetEthashECIP1010PauseTransition(n *uint64) error
 	GetEthashECIP1010ContinueTransition() *uint64
@@ -205,6 +241,11 @@ type CliqueConfigurator interface {
 	SetCliquePeriod(n uint64) error
 	GetCliqueEpoch() uint64
 	SetCliqueEpoch(n uint64) error
+}
+
+type Lyra2Configurator interface {
+	GetLyra2NonceTransition() *uint64
+	SetLyra2NonceTransition(n *uint64) error
 }
 
 type BlockSealer interface {

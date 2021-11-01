@@ -98,6 +98,11 @@ func Convert(from, to interface{}) error {
 		if err := convert(k, fromChainer, toChainer); err != nil {
 			return err
 		}
+	case ctypes.ConsensusEngineT_Lyra2:
+		k := reflect.TypeOf((*ctypes.Lyra2Configurator)(nil)).Elem()
+		if err := convert(k, fromChainer, toChainer); err != nil {
+			return err
+		}
 	default:
 		return ctypes.UnsupportedConfigError(ctypes.ErrUnsupportedConfigFatal, "consensus engine", ctypes.ConsensusEngineT_Unknown)
 	}
@@ -124,7 +129,7 @@ func convert(k reflect.Type, source, target interface{}) error {
 		if !setResponse[0].IsNil() {
 			err := setResponse[0].Interface().(error)
 			v := response[0].Interface()
-			if !response[0].IsNil() {
+			if !response[0].IsNil() && response[0].Kind() == reflect.Ptr {
 				v = response[0].Elem().Interface()
 			}
 			e := ctypes.UnsupportedConfigError(err, strings.TrimPrefix(method.Name, "Get"), v)

@@ -30,7 +30,7 @@ var (
 		Name:  "trace",
 		Usage: "Output full trace logs to files <txhash>.jsonl",
 	}
-	TraceDisableMemoryFlag = cli.BoolFlag{
+	TraceDisableMemoryFlag = cli.BoolTFlag{
 		Name:  "trace.nomemory",
 		Usage: "Disable full memory dump in traces",
 	}
@@ -38,13 +38,18 @@ var (
 		Name:  "trace.nostack",
 		Usage: "Disable stack output in traces",
 	}
-	TraceDisableReturnDataFlag = cli.BoolFlag{
+	TraceDisableReturnDataFlag = cli.BoolTFlag{
 		Name:  "trace.noreturndata",
 		Usage: "Disable return data output in traces",
 	}
 	OutputBasedir = cli.StringFlag{
 		Name:  "output.basedir",
 		Usage: "Specifies where output files are placed. Will be created if it does not exist.",
+		Value: "",
+	}
+	OutputBodyFlag = cli.StringFlag{
+		Name:  "output.body",
+		Usage: "If set, the RLP of the transactions (block body) will be written to this file.",
 		Value: "",
 	}
 	OutputAllocFlag = cli.StringFlag{
@@ -74,8 +79,10 @@ var (
 		Value: "env.json",
 	}
 	InputTxsFlag = cli.StringFlag{
-		Name:  "input.txs",
-		Usage: "`stdin` or file name of where to find the transactions to apply.",
+		Name: "input.txs",
+		Usage: "`stdin` or file name of where to find the transactions to apply. " +
+			"If the file prefix is '.rlp', then the data is interpreted as an RLP list of signed transactions." +
+			"The '.rlp' format is identical to the output.body format.",
 		Value: "txs.json",
 	}
 	RewardFlag = cli.Int64Flag{

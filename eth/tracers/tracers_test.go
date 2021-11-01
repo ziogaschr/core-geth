@@ -36,6 +36,7 @@ import (
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/core/vm"
 	"github.com/ethereum/go-ethereum/crypto"
+	"github.com/ethereum/go-ethereum/internal/ethapi"
 	"github.com/ethereum/go-ethereum/params"
 	"github.com/ethereum/go-ethereum/params/types/genesisT"
 	"github.com/ethereum/go-ethereum/rlp"
@@ -191,16 +192,18 @@ func TestPrestateTracerCreate2(t *testing.T) {
 	    result: 0x60f3f640a8508fC6a86d45DF051962668E1e8AC7
 	*/
 	origin, _ := signer.Sender(tx)
-	context := vm.Context{
+	txContext := vm.TxContext{
+		Origin:   origin,
+		GasPrice: big.NewInt(1),
+	}
+	context := vm.BlockContext{
 		CanTransfer: core.CanTransfer,
 		Transfer:    core.Transfer,
-		Origin:      origin,
 		Coinbase:    common.Address{},
 		BlockNumber: new(big.Int).SetUint64(8000000),
 		Time:        new(big.Int).SetUint64(5),
 		Difficulty:  big.NewInt(0x30000),
 		GasLimit:    uint64(6000000),
-		GasPrice:    big.NewInt(1),
 	}
 	alloc := genesisT.GenesisAlloc{}
 
@@ -219,13 +222,13 @@ func TestPrestateTracerCreate2(t *testing.T) {
 	_, statedb := tests.MakePreState(rawdb.NewMemoryDatabase(), alloc, false)
 
 	// Create the tracer, the EVM environment and run it
-	tracer, err := New("prestateTracer")
+	tracer, err := New("prestateTracer", new(Context))
 	if err != nil {
 		t.Fatalf("failed to create call tracer: %v", err)
 	}
-	evm := vm.NewEVM(context, statedb, params.MainnetChainConfig, vm.Config{Debug: true, Tracer: tracer})
+	evm := vm.NewEVM(context, txContext, statedb, params.MainnetChainConfig, vm.Config{Debug: true, Tracer: tracer})
 
-	msg, err := tx.AsMessage(signer)
+	msg, err := tx.AsMessage(signer, nil)
 	if err != nil {
 		t.Fatalf("failed to prepare transaction for tracing: %v", err)
 	}
@@ -278,28 +281,29 @@ func TestCallTracer(t *testing.T) {
 			}
 			signer := types.MakeSigner(test.Genesis.Config, new(big.Int).SetUint64(uint64(test.Context.Number)))
 			origin, _ := signer.Sender(tx)
-
-			context := vm.Context{
+			txContext := vm.TxContext{
+				Origin:   origin,
+				GasPrice: tx.GasPrice(),
+			}
+			context := vm.BlockContext{
 				CanTransfer: core.CanTransfer,
 				Transfer:    core.Transfer,
-				Origin:      origin,
 				Coinbase:    test.Context.Miner,
 				BlockNumber: new(big.Int).SetUint64(uint64(test.Context.Number)),
 				Time:        new(big.Int).SetUint64(uint64(test.Context.Time)),
 				Difficulty:  (*big.Int)(test.Context.Difficulty),
 				GasLimit:    uint64(test.Context.GasLimit),
-				GasPrice:    tx.GasPrice(),
 			}
 			_, statedb := tests.MakePreState(rawdb.NewMemoryDatabase(), test.Genesis.Alloc, false)
 
 			// Create the tracer, the EVM environment and run it
-			tracer, err := New("callTracer")
+			tracer, err := New("callTracer", new(Context))
 			if err != nil {
 				t.Fatalf("failed to create call tracer: %v", err)
 			}
-			evm := vm.NewEVM(context, statedb, test.Genesis.Config, vm.Config{Debug: true, Tracer: tracer})
+			evm := vm.NewEVM(context, txContext, statedb, test.Genesis.Config, vm.Config{Debug: true, Tracer: tracer})
 
-			msg, err := tx.AsMessage(signer)
+			msg, err := tx.AsMessage(signer, nil)
 			if err != nil {
 				t.Fatalf("failed to prepare transaction for tracing: %v", err)
 			}
@@ -346,6 +350,84 @@ func jsonEqual(x, y interface{}) bool {
 	return reflect.DeepEqual(xTrace, yTrace)
 }
 
+func BenchmarkTransactionTrace(b *testing.B) {
+	key, _ := crypto.HexToECDSA("b71c71a67e1177ad4e901695e1b4b9ee17ae16c6668d313eac2f96dbcda3f291")
+	from := crypto.PubkeyToAddress(key.PublicKey)
+	gas := uint64(1000000) // 1M gas
+	to := common.HexToAddress("0x00000000000000000000000000000000deadbeef")
+	signer := types.LatestSignerForChainID(big.NewInt(1337))
+	tx, err := types.SignNewTx(key, signer,
+		&types.LegacyTx{
+			Nonce:    1,
+			GasPrice: big.NewInt(500),
+			Gas:      gas,
+			To:       &to,
+		})
+	if err != nil {
+		b.Fatal(err)
+	}
+	txContext := vm.TxContext{
+		Origin:   from,
+		GasPrice: tx.GasPrice(),
+	}
+	context := vm.BlockContext{
+		CanTransfer: core.CanTransfer,
+		Transfer:    core.Transfer,
+		Coinbase:    common.Address{},
+		BlockNumber: new(big.Int).SetUint64(uint64(5)),
+		Time:        new(big.Int).SetUint64(uint64(5)),
+		Difficulty:  big.NewInt(0xffffffff),
+		GasLimit:    gas,
+	}
+	alloc := genesisT.GenesisAlloc{}
+	// The code pushes 'deadbeef' into memory, then the other params, and calls CREATE2, then returns
+	// the address
+	loop := []byte{
+		byte(vm.JUMPDEST), //  [ count ]
+		byte(vm.PUSH1), 0, // jumpdestination
+		byte(vm.JUMP),
+	}
+	alloc[common.HexToAddress("0x00000000000000000000000000000000deadbeef")] = genesisT.GenesisAccount{
+		Nonce:   1,
+		Code:    loop,
+		Balance: big.NewInt(1),
+	}
+	alloc[from] = genesisT.GenesisAccount{
+		Nonce:   1,
+		Code:    []byte{},
+		Balance: big.NewInt(500000000000000),
+	}
+	_, statedb := tests.MakePreState(rawdb.NewMemoryDatabase(), alloc, false)
+	// Create the tracer, the EVM environment and run it
+	tracer := vm.NewStructLogger(&vm.LogConfig{
+		Debug: false,
+		//DisableStorage: true,
+		//DisableMemory: true,
+		//DisableReturnData: true,
+	})
+	evm := vm.NewEVM(context, txContext, statedb, params.AllEthashProtocolChanges, vm.Config{Debug: true, Tracer: tracer})
+	msg, err := tx.AsMessage(signer, nil)
+	if err != nil {
+		b.Fatalf("failed to prepare transaction for tracing: %v", err)
+	}
+	b.ResetTimer()
+	b.ReportAllocs()
+
+	for i := 0; i < b.N; i++ {
+		snap := statedb.Snapshot()
+		st := core.NewStateTransition(evm, msg, new(core.GasPool).AddGas(tx.Gas()))
+		_, err = st.TransitionDb()
+		if err != nil {
+			b.Fatal(err)
+		}
+		statedb.RevertToSnapshot(snap)
+		if have, want := len(tracer.StructLogs()), 244752; have != want {
+			b.Fatalf("trace wrong, want %d steps, have %d", want, have)
+		}
+		tracer.Reset()
+	}
+}
+
 func callTracerParityTestRunner(filename string) error {
 	// Call tracer test found, read if from disk
 	blob, err := ioutil.ReadFile(filepath.Join("testdata", filename))
@@ -363,28 +445,29 @@ func callTracerParityTestRunner(filename string) error {
 	}
 	signer := types.MakeSigner(test.Genesis.Config, new(big.Int).SetUint64(uint64(test.Context.Number)))
 	origin, _ := signer.Sender(tx)
-
-	context := vm.Context{
+	txContext := vm.TxContext{
+		Origin:   origin,
+		GasPrice: tx.GasPrice(),
+	}
+	context := vm.BlockContext{
 		CanTransfer: core.CanTransfer,
 		Transfer:    core.Transfer,
-		Origin:      origin,
 		Coinbase:    test.Context.Miner,
 		BlockNumber: new(big.Int).SetUint64(uint64(test.Context.Number)),
 		Time:        new(big.Int).SetUint64(uint64(test.Context.Time)),
 		Difficulty:  (*big.Int)(test.Context.Difficulty),
 		GasLimit:    uint64(test.Context.GasLimit),
-		GasPrice:    tx.GasPrice(),
 	}
 	_, statedb := tests.MakePreState(rawdb.NewMemoryDatabase(), test.Genesis.Alloc, false)
 
 	// Create the tracer, the EVM environment and run it
-	tracer, err := New("callTracerParity")
+	tracer, err := New("callTracerParity", new(Context))
 	if err != nil {
 		return fmt.Errorf("failed to create call tracer: %v", err)
 	}
-	evm := vm.NewEVM(context, statedb, test.Genesis.Config, vm.Config{Debug: true, Tracer: tracer})
+	evm := vm.NewEVM(context, txContext, statedb, test.Genesis.Config, vm.Config{Debug: true, Tracer: tracer})
 
-	msg, err := tx.AsMessage(signer)
+	msg, err := tx.AsMessage(signer, nil)
 	if err != nil {
 		return fmt.Errorf("failed to prepare transaction for tracing: %v", err)
 	}
@@ -472,4 +555,167 @@ func BenchmarkCallTracerParity(b *testing.B) {
 			}
 		})
 	}
+}
+
+type stateDiffAccount struct {
+	Balance interface{}                            `json:"balance"` // Can be either string "=" or mapping "*" => {"from": "hex", "to": "hex"}
+	Code    interface{}                            `json:"code"`
+	Nonce   interface{}                            `json:"nonce"`
+	Storage map[common.Hash]map[string]interface{} `json:"storage"`
+}
+
+type stateDiffTest struct {
+	Genesis *genesisT.Genesis                    `json:"genesis"`
+	Context *callContext                         `json:"context"`
+	Input   *ethapi.TransactionArgs              `json:"input"`
+	Result  map[common.Address]*stateDiffAccount `json:"result"`
+}
+
+func stateDiffTracerTestRunner(filename string) error {
+	// Call tracer test found, read if from disk
+	blob, err := ioutil.ReadFile(filepath.Join("testdata", filename))
+	if err != nil {
+		return fmt.Errorf("failed to read testcase: %v", err)
+	}
+	test := new(stateDiffTest)
+	if err := json.Unmarshal(blob, test); err != nil {
+		return fmt.Errorf("failed to parse testcase: %v", err)
+	}
+
+	// Configure a blockchain with the given prestate
+	msg, err := test.Input.ToMessage(uint64(test.Context.GasLimit), nil)
+	if err != nil {
+		return fmt.Errorf("failed to create transaction: %v", err)
+	}
+
+	// This is needed for trace_call (debug mode),
+	// as the Transaction is being run on top of the block transactions,
+	// which might lead into ErrInsufficientFundsForTransfer error
+	canTransfer := func(db vm.StateDB, sender common.Address, amount *big.Int) bool {
+		if msg.From() == sender {
+			return true
+		}
+		return core.CanTransfer(db, sender, amount)
+	}
+
+	// If the actual transaction would fail, then there is no reason to actually transfer any balance at all
+	transfer := func(db vm.StateDB, sender, recipient common.Address, amount *big.Int) {
+		toAmount := new(big.Int).Set(amount)
+		senderBalance := db.GetBalance(sender)
+		if senderBalance.Cmp(toAmount) < 0 {
+			toAmount.Set(big.NewInt(0))
+		}
+		core.Transfer(db, sender, recipient, toAmount)
+	}
+
+	txContext := vm.TxContext{
+		Origin:   msg.From(),
+		GasPrice: msg.GasPrice(),
+	}
+	context := vm.BlockContext{
+		CanTransfer: canTransfer,
+		Transfer:    transfer,
+		Coinbase:    test.Context.Miner,
+		BlockNumber: new(big.Int).SetUint64(uint64(test.Context.Number)),
+		Time:        new(big.Int).SetUint64(uint64(test.Context.Time)),
+		Difficulty:  (*big.Int)(test.Context.Difficulty),
+		GasLimit:    uint64(test.Context.GasLimit),
+	}
+	_, statedb := tests.MakePreState(rawdb.NewMemoryDatabase(), test.Genesis.Alloc, false)
+
+	// Store the truth on whether from account has enough balance for context usage
+	gasCost := new(big.Int).Mul(new(big.Int).SetUint64(msg.Gas()), msg.GasPrice())
+	totalCost := new(big.Int).Add(gasCost, msg.Value())
+
+	// It is important to use core.CanTransfer on the two following lines
+	hasFromSufficientBalanceForValueAndGasCost := core.CanTransfer(statedb, msg.From(), totalCost)
+	hasFromSufficientBalanceForGasCost := core.CanTransfer(statedb, msg.From(), gasCost)
+
+	// Add extra context needed for state_diff
+	taskExtraContext := map[string]interface{}{
+		"hasFromSufficientBalanceForValueAndGasCost": hasFromSufficientBalanceForValueAndGasCost,
+		"hasFromSufficientBalanceForGasCost":         hasFromSufficientBalanceForGasCost,
+		"from":                                       msg.From(),
+		"coinbase":                                   context.Coinbase,
+		"gasLimit":                                   msg.Gas(),
+		"gasPrice":                                   msg.GasPrice(),
+	}
+
+	if msg.To() != nil {
+		taskExtraContext["msgTo"] = *msg.To()
+	}
+
+	// Create the tracer, the EVM environment and run it
+	tracer, err := New("stateDiffTracer", new(Context))
+	if err != nil {
+		return fmt.Errorf("failed to create state diff tracer: %v", err)
+	}
+	evm := vm.NewEVM(context, txContext, statedb, test.Genesis.Config, vm.Config{Debug: true, Tracer: tracer})
+
+	tracer.CapturePreEVM(evm, taskExtraContext)
+
+	st := core.NewStateTransition(evm, msg, new(core.GasPool).AddGas(msg.Gas()))
+	if _, err = st.TransitionDb(); err != nil {
+		return fmt.Errorf("failed to execute transaction: %v", err)
+	}
+
+	// Retrieve the trace result and compare against the etalon
+	res, err := tracer.GetResult()
+	if err != nil {
+		return fmt.Errorf("failed to retrieve trace result: %v", err)
+	}
+	ret := new(map[common.Address]*stateDiffAccount)
+	if err := json.Unmarshal(res, ret); err != nil {
+		return fmt.Errorf("failed to unmarshal trace result: %v", err)
+	}
+
+	if !jsonEqualStateDiff(ret, test.Result) {
+		// uncomment this for easier debugging
+		// have, _ := json.MarshalIndent(ret, "", " ")
+		// want, _ := json.MarshalIndent(test.Result, "", " ")
+		// return fmt.Errorf("trace mismatch: \nhave %+v\nwant %+v", string(have), string(want))
+		return fmt.Errorf("trace mismatch: \nhave %+v\nwant %+v", ret, test.Result)
+	}
+	return nil
+}
+
+// TestStateDiffTracer Iterates over all the input-output datasets in the state diff tracer test harness and
+// runs the JavaScript tracers against them.
+func TestStateDiffTracer(t *testing.T) {
+	files, err := ioutil.ReadDir("testdata")
+	if err != nil {
+		t.Fatalf("failed to retrieve tracer test suite: %v", err)
+	}
+	for _, file := range files {
+		if !strings.HasPrefix(file.Name(), "state_diff_tracer_") {
+			continue
+		}
+		file := file // capture range variable
+		t.Run(camel(strings.TrimSuffix(strings.TrimPrefix(file.Name(), "state_diff_tracer_"), ".json")), func(t *testing.T) {
+			t.Parallel()
+
+			err := stateDiffTracerTestRunner(file.Name())
+			if err != nil {
+				t.Fatal(err)
+			}
+		})
+	}
+}
+
+// jsonEqual is similar to reflect.DeepEqual, but does a 'bounce' via json prior to
+// comparison
+func jsonEqualStateDiff(x, y interface{}) bool {
+	xTrace := new(map[common.Address]*stateDiffAccount)
+	yTrace := new(map[common.Address]*stateDiffAccount)
+	if xj, err := json.Marshal(x); err == nil {
+		json.Unmarshal(xj, xTrace)
+	} else {
+		return false
+	}
+	if yj, err := json.Marshal(y); err == nil {
+		json.Unmarshal(yj, yTrace)
+	} else {
+		return false
+	}
+	return reflect.DeepEqual(xTrace, yTrace)
 }

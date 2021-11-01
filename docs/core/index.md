@@ -25,7 +25,7 @@ CoreGeth features a synthetic build/+runtime service discovery API, allowing you
 description of _all_ available methods, their parameters, and results.
 
 !!! tip "RPC Service Documentation"
-    For complete documentation of the available JSON RPC APIs, please see the [JSON RPC API page](/JSON-RPC-API/).
+    For complete documentation of the available JSON RPC APIs, please see the [JSON RPC API page](/core-geth/JSON-RPC-API/modules/eth).
 
 #### Additional methods and options
 
@@ -34,19 +34,19 @@ description of _all_ available methods, their parameters, and results.
 - Added `debug_removePendingTransaction` API method ([#203](https://github.com/etclabscore/core-geth/pull/203/files))
 - Comprehensive service discovery with OpenRPC through method `rpc.discover`.
 
-### Extended CLI
+### EVMCv7 Support
 
-- `--eth.protocols` configures `eth/x` protocol prioritization, eg. `65,64,63`.
-
-### EVMCv6 Support
-
-- EVMCv6 support allows use with external EVMs (including EWASM).
+- EVMCv7 support allows use with external EVMs (including EWASM).
 - See [Running Geth with an External VM](./core/evmc) for more information.
 
 ### Remote Store for Ancient Chaindata
 
 - Remote freezer, store your `ancient` data on Amazon S3 or Storj.
     - _TODO_: Talk more about this, provide examples.
+
+### Extended CLI
+
+- `--eth.protocols` configures `eth/x` protocol prioritization, eg. `65,64,63`.
 
 ### Developer Features: Tools
 

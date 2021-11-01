@@ -51,11 +51,11 @@ import (
 	"github.com/ethereum/go-ethereum/rlp"
 	"github.com/ethereum/go-ethereum/rpc"
 	"github.com/ethereum/go-ethereum/signer/core"
+	"github.com/ethereum/go-ethereum/signer/core/apitypes"
 	"github.com/ethereum/go-ethereum/signer/fourbyte"
 	"github.com/ethereum/go-ethereum/signer/rules"
 	"github.com/ethereum/go-ethereum/signer/storage"
-
-	colorable "github.com/mattn/go-colorable"
+	"github.com/mattn/go-colorable"
 	"github.com/mattn/go-isatty"
 	"gopkg.in/urfave/cli.v1"
 )
@@ -106,11 +106,6 @@ var (
 	rpcPortFlag = cli.IntFlag{
 		Name:  "http.port",
 		Usage: "HTTP-RPC server listening port",
-		Value: node.DefaultHTTPPort + 5,
-	}
-	legacyRPCPortFlag = cli.IntFlag{
-		Name:  "rpcport",
-		Usage: "HTTP-RPC server listening port (Deprecated, please use --http.port).",
 		Value: node.DefaultHTTPPort + 5,
 	}
 	signerSecretFlag = cli.StringFlag{
@@ -251,12 +246,6 @@ var AppHelpFlagGroups = []flags.FlagGroup{
 			acceptFlag,
 		},
 	},
-	{
-		Name: "ALIASED (deprecated)",
-		Flags: []cli.Flag{
-			legacyRPCPortFlag,
-		},
-	},
 }
 
 func init() {
@@ -284,7 +273,6 @@ func init() {
 		testFlag,
 		advancedMode,
 		acceptFlag,
-		legacyRPCPortFlag,
 	}
 	app.Action = signer
 	app.Commands = []cli.Command{initCommand,
@@ -670,7 +658,7 @@ func signer(c *cli.Context) error {
 		cors := utils.SplitAndTrim(c.GlobalString(utils.HTTPCORSDomainFlag.Name))
 
 		srv := rpc.NewServer()
-		err := node.RegisterApisFromWhitelist(rpcAPI, []string{"account"}, srv, false)
+		err := node.RegisterApis(rpcAPI, []string{"account"}, srv, false)
 		if err != nil {
 			utils.Fatalf("Could not register API: %w", err)
 		}
@@ -678,12 +666,6 @@ func signer(c *cli.Context) error {
 
 		// set port
 		port := c.Int(rpcPortFlag.Name)
-		if c.GlobalIsSet(legacyRPCPortFlag.Name) {
-			if !c.GlobalIsSet(rpcPortFlag.Name) {
-				port = c.Int(legacyRPCPortFlag.Name)
-			}
-			log.Warn("The flag --rpcport is deprecated and will be removed in the future, please use --http.port")
-		}
 
 		// start http server
 		httpEndpoint := fmt.Sprintf("%s:%d", c.GlobalString(utils.HTTPListenAddrFlag.Name), port)
@@ -748,12 +730,10 @@ func DefaultConfigDir() string {
 			appdata := os.Getenv("APPDATA")
 			if appdata != "" {
 				return filepath.Join(appdata, "Signer")
-			} else {
-				return filepath.Join(home, "AppData", "Roaming", "Signer")
 			}
-		} else {
-			return filepath.Join(home, ".clef")
+			return filepath.Join(home, "AppData", "Roaming", "Signer")
 		}
+		return filepath.Join(home, ".clef")
 	}
 	// As we cannot guess a stable location, return empty and handle later
 	return ""
@@ -808,14 +788,16 @@ func readMasterKey(ctx *cli.Context, ui core.UIClientAPI) ([]byte, error) {
 
 // checkFile is a convenience function to check if a file
 // * exists
-// * is mode 0400
+// * is mode 0400 (unix only)
 func checkFile(filename string) error {
 	info, err := os.Stat(filename)
 	if err != nil {
 		return fmt.Errorf("failed stat on %s: %v", filename, err)
 	}
 	// Check the unix permission bits
-	if info.Mode().Perm()&0377 != 0 {
+	// However, on windows, we cannot use the unix perm-bits, see
+	// https://github.com/ethereum/go-ethereum/issues/20123
+	if runtime.GOOS != "windows" && info.Mode().Perm()&0377 != 0 {
 		return fmt.Errorf("file (%v) has insecure file permissions (%v)", filename, info.Mode().String())
 	}
 	return nil
@@ -942,13 +924,13 @@ func testExternalUI(api *core.SignerAPI) {
 		time.Sleep(delay)
 		data := hexutil.Bytes([]byte{})
 		to := common.NewMixedcaseAddress(a)
-		tx := core.SendTxArgs{
+		tx := apitypes.SendTxArgs{
 			Data:     &data,
 			Nonce:    0x1,
 			Value:    hexutil.Big(*big.NewInt(6)),
 			From:     common.NewMixedcaseAddress(a),
 			To:       &to,
-			GasPrice: hexutil.Big(*big.NewInt(5)),
+			GasPrice: (*hexutil.Big)(big.NewInt(5)),
 			Gas:      1000,
 			Input:    nil,
 		}
@@ -1074,17 +1056,17 @@ func GenDoc(ctx *cli.Context) {
 		data := hexutil.Bytes([]byte{0x01, 0x02, 0x03, 0x04})
 		add("SignTxRequest", desc, &core.SignTxRequest{
 			Meta: meta,
-			Callinfo: []core.ValidationInfo{
+			Callinfo: []apitypes.ValidationInfo{
 				{Typ: "Warning", Message: "Something looks odd, show this message as a warning"},
 				{Typ: "Info", Message: "User should see this as well"},
 			},
-			Transaction: core.SendTxArgs{
+			Transaction: apitypes.SendTxArgs{
 				Data:     &data,
 				Nonce:    0x1,
 				Value:    hexutil.Big(*big.NewInt(6)),
 				From:     common.NewMixedcaseAddress(a),
 				To:       nil,
-				GasPrice: hexutil.Big(*big.NewInt(5)),
+				GasPrice: (*hexutil.Big)(big.NewInt(5)),
 				Gas:      1000,
 				Input:    nil,
 			}})
@@ -1094,13 +1076,13 @@ func GenDoc(ctx *cli.Context) {
 		add("SignTxResponse - approve", "Response to request to sign a transaction. This response needs to contain the `transaction`"+
 			", because the UI is free to make modifications to the transaction.",
 			&core.SignTxResponse{Approved: true,
-				Transaction: core.SendTxArgs{
+				Transaction: apitypes.SendTxArgs{
 					Data:     &data,
 					Nonce:    0x4,
 					Value:    hexutil.Big(*big.NewInt(6)),
 					From:     common.NewMixedcaseAddress(a),
 					To:       nil,
-					GasPrice: hexutil.Big(*big.NewInt(5)),
+					GasPrice: (*hexutil.Big)(big.NewInt(5)),
 					Gas:      1000,
 					Input:    nil,
 				}})
@@ -1125,7 +1107,7 @@ func GenDoc(ctx *cli.Context) {
 
 		rlpdata := common.FromHex("0xf85d640101948a8eafb1cf62bfbeb1741769dae1a9dd47996192018026a0716bd90515acb1e68e5ac5867aa11a1e65399c3349d479f5fb698554ebc6f293a04e8a4ebfff434e971e0ef12c5bf3a881b06fd04fc3f8b8a7291fb67a26a1d4ed")
 		var tx types.Transaction
-		rlp.DecodeBytes(rlpdata, &tx)
+		tx.UnmarshalBinary(rlpdata)
 		add("OnApproved - SignTransactionResult", desc, &ethapi.SignTransactionResult{Raw: rlpdata, Tx: &tx})
 
 	}
