@@ -63,9 +63,9 @@ jobs:
               export PATH=$PATH:/usr/local/go/bin
 
               sudo apt-get update
-              sudo apt-get -y install libc6
+              sudo -E apt-get -yq --no-install-suggests --no-install-recommends --force-yes install gcc-arm-linux-gnueabi libc6-dev-armel-cross gcc-arm-linux-gnueabihf libc6-dev-armhf-cross gcc-aarch64-linux-gnu libc6-dev-arm64-cross
 
-              GOARM=6 go run build/ci.go install -dlgo -arch arm
+              GOARM=5 go run build/ci.go install -dlgo -arch arm -cc arm-linux-gnueabi-gcc
 
       - name: Prepare archives for release
         run: ./build/deploy.sh
