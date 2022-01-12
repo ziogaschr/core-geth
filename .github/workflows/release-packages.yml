@@ -48,24 +48,41 @@ jobs:
         if: ${{ matrix.BUILD_OS_NAME != 'arm' }}
         run: make all
 
+      # - name: Build all packages (ARM)
+      #   uses: pguyot/arm-runner-action@v1
+      #   id: build_image
+      #   if: ${{ matrix.BUILD_OS_NAME == 'arm' }}
+      #   with:
+      #     image_additional_mb: 2000
+      #     copy_artifact_path: ./build/bin/
+      #     copy_artifact_dest: ./build/bin/
+      #     commands: |
+      #         wget https://golang.org/dl/go1.17.2.linux-armv6l.tar.gz
+      #         sudo tar -C /usr/local -xzf go1.17.2.linux-armv6l.tar.gz
+      #         rm go1.17.2.linux-armv6l.tar.gz
+      #         export PATH=$PATH:/usr/local/go/bin
+
+      #         sudo apt-get update
+      #         sudo -E apt-get -yq gcc-multilib
+
+      #         sudo -E apt-get -yq --no-install-suggests --no-install-recommends --force-yes install gcc-arm-linux-gnueabi libc6-dev-armel-cross gcc-arm-linux-gnueabihf libc6-dev-armhf-cross gcc-aarch64-linux-gnu libc6-dev-arm64-cross
+      #         sudo ln -s /usr/include/asm-generic /usr/include/asm
+
+      #         GOARM=5 go run build/ci.go install -dlgo -arch arm -cc arm-linux-gnueabi-gcc
+      #         # GOARM=6 go run build/ci.go install -dlgo -arch arm -cc arm-linux-gnueabi-gcc
+      #         # GOARM=7 go run build/ci.go install -dlgo -arch arm -cc arm-linux-gnueabihf-gcc
+
       - name: Build all packages (ARM)
-        uses: pguyot/arm-runner-action@v1
-        id: build_image
+        id: build_image-arm
         if: ${{ matrix.BUILD_OS_NAME == 'arm' }}
-        with:
-          image_additional_mb: 2000
-          copy_artifact_path: ./build/bin/
-          copy_artifact_dest: ./build/bin/
-          commands: |
-              wget https://golang.org/dl/go1.16.9.linux-armv6l.tar.gz
-              sudo tar -C /usr/local -xzf go1.16.9.linux-armv6l.tar.gz
-              rm go1.16.9.linux-armv6l.tar.gz
-              export PATH=$PATH:/usr/local/go/bin
+        run: |
+          sudo apt-get update
+          sudo -E apt-get -yq gcc-multilib
 
-              sudo apt-get update
-              sudo -E apt-get -yq --no-install-suggests --no-install-recommends --force-yes install gcc-arm-linux-gnueabi libc6-dev-armel-cross gcc-arm-linux-gnueabihf libc6-dev-armhf-cross gcc-aarch64-linux-gnu libc6-dev-arm64-cross
+          sudo -E apt-get -yq --no-install-suggests --no-install-recommends --force-yes install gcc-arm-linux-gnueabi libc6-dev-armel-cross gcc-arm-linux-gnueabihf libc6-dev-armhf-cross gcc-aarch64-linux-gnu libc6-dev-arm64-cross
+          sudo ln -s /usr/include/asm-generic /usr/include/asm
 
-              GOARM=5 go run build/ci.go install -dlgo -arch arm -cc arm-linux-gnueabi-gcc
+          GOARM=5 go run build/ci.go install -dlgo -arch arm -cc arm-linux-gnueabi-gcc
 
       - name: Prepare archives for release
         run: ./build/deploy.sh
