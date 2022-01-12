@@ -63,7 +63,7 @@ jobs:
               export PATH=$PATH:/usr/local/go/bin
 
               sudo apt-get update
-              sudo apt-get install libc6
+              sudo apt-get -y install libc6
 
               GOARM=5 go run build/ci.go install -dlgo -arch arm
 
